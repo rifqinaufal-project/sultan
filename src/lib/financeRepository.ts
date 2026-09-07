@@ -137,7 +137,7 @@ export async function loadTransactions(limit = 100) {
     id: item.id,
     type: 'Komisi',
     name: (item.traders as unknown as { name: string } | null)?.name ?? 'Tanpa nama',
-    category: 'Komisi ikan',
+    category: 'Pemasukan ikan',
     date: item.transaction_date,
     time: new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
     amount: Number(item.amount),

@@ -14,7 +14,7 @@ import {
   Trash,
   X,
 } from '@phosphor-icons/react'
-import { exportReport, type ExportFormat } from './lib/exportReport'
+import { exportMonthlyPdf, exportReport, type ExportFormat } from './lib/exportReport'
 import { createExpenseName, deleteExpenseName, deleteTransaction, isRemoteDataAvailable, loadDailyReports, loadExpenseNames, loadTransactions, loadTopTrader, loadTraders, loadYearlyReports, saveBatch, updateExpenseName, updateTransaction, type DailyReportRow, type RemoteExpenseName } from './lib/financeRepository'
 import './App.css'
 
@@ -40,9 +40,9 @@ type Transaction = {
 }
 
 const initialTransactions: Transaction[] = [
-  { id: 1, type: 'Komisi', name: 'Budi Santoso', category: 'Komisi ikan', date: '2026-09-05', time: '08:42', amount: 2850000, note: 'Setoran ikan tongkol' },
+  { id: 1, type: 'Komisi', name: 'Budi Santoso', category: 'Pemasukan ikan', date: '2026-09-05', time: '08:42', amount: 2850000, note: 'Setoran ikan tongkol' },
   { id: 2, type: 'Pengeluaran', name: 'Solar kapal', category: 'Operasional', date: '2026-09-05', time: '07:15', amount: 640000, note: 'Kebutuhan melaut' },
-  { id: 3, type: 'Komisi', name: 'Siti Rahma', category: 'Komisi ikan', date: '2026-09-04', time: '16:20', amount: 1975000, note: 'Setoran ikan cakalang' },
+  { id: 3, type: 'Komisi', name: 'Siti Rahma', category: 'Pemasukan ikan', date: '2026-09-04', time: '16:20', amount: 1975000, note: 'Setoran ikan cakalang' },
   { id: 4, type: 'Pengeluaran', name: 'Transportasi', category: 'Transportasi', date: '2026-09-04', time: '13:05', amount: 275000, note: 'Pengiriman ke pasar' },
 ]
 
@@ -124,9 +124,9 @@ const buildChartBuckets = (items: Transaction[], start: string, end: string) => 
 const reportRows = (items: Transaction[]) => items.map((item) => ({
   Tanggal: displayDate(item.date),
   Waktu: item.time,
-  Jenis: item.type,
+  Jenis: item.type === 'Komisi' ? 'Pemasukan' : item.type,
   Nama: item.name,
-  Kategori: item.category,
+  Kategori: item.category.replace('Komisi', 'Pemasukan'),
   Catatan: item.note,
   Jumlah: item.amount,
 }))
@@ -414,7 +414,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
       id: Date.now() + index,
       type: formType,
       name: entry.resolvedName,
-      category: formType === 'Komisi' ? 'Komisi ikan' : 'Pengeluaran',
+      category: formType === 'Komisi' ? 'Pemasukan ikan' : 'Pengeluaran',
       date,
       time,
       amount: entry.numericAmount,
@@ -505,101 +505,697 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
     <div className="app-shell">
       <header className="desktop-header">
         <div className="header-inner">
-          <button className="brand" onClick={() => navigate('Dashboard')}><span className="brand-mark">S</span><strong>Sultan</strong></button>
+          <button className="brand" onClick={() => navigate("Dashboard")}>
+            <span className="brand-mark">S</span>
+            <strong>Sultan</strong>
+          </button>
           <nav aria-label="Navigasi utama">
-            <button className={page === 'Dashboard' ? 'active' : ''} aria-current={page === 'Dashboard' ? 'page' : undefined} onClick={() => navigate('Dashboard')}><SquaresFour size={19} weight="bold" /> Dashboard</button>
-            <button className={page === 'Laporan' ? 'active' : ''} aria-current={page === 'Laporan' ? 'page' : undefined} onClick={() => navigate('Laporan')}><Receipt size={19} weight="bold" /> Laporan</button>
+            <button
+              className={page === "Dashboard" ? "active" : ""}
+              aria-current={page === "Dashboard" ? "page" : undefined}
+              onClick={() => navigate("Dashboard")}
+            >
+              <SquaresFour size={19} weight="bold" /> Dashboard
+            </button>
+            <button
+              className={page === "Laporan" ? "active" : ""}
+              aria-current={page === "Laporan" ? "page" : undefined}
+              onClick={() => navigate("Laporan")}
+            >
+              <Receipt size={19} weight="bold" /> Laporan
+            </button>
           </nav>
-          <div className="header-actions"><button className="header-add" onClick={() => openModal()}><Plus size={18} weight="bold" /> Catat transaksi</button><button className="logout-button" onClick={onLogout}>Keluar</button></div>
+          <div className="header-actions">
+            <button className="header-add" onClick={() => openModal()}>
+              <Plus size={18} weight="bold" /> Catat transaksi
+            </button>
+            <button className="logout-button" onClick={onLogout}>
+              Keluar
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="main-content">
         <header className="page-heading">
-          <div><p>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}</p><h1>{page}</h1></div>
-          <div className="heading-actions"><div className="profile-menu"><button className="profile-trigger round-logo" type="button" aria-label="Buka menu profil" aria-haspopup="menu" aria-expanded={showProfileMenu} onClick={() => setShowProfileMenu((current) => !current)}>S</button>{showProfileMenu && <div className="profile-dropdown" role="menu"><span className="profile-name">Admin</span><button type="button" role="menuitem" onClick={onLogout}><SignOut size={17} /> Keluar</button></div>}</div></div>
+          <div>
+            <p>
+              {new Intl.DateTimeFormat("id-ID", { dateStyle: "full" }).format(
+                new Date(),
+              )}
+            </p>
+            <h1>{page}</h1>
+          </div>
+          <div className="heading-actions">
+            <div className="profile-menu">
+              <button
+                className="profile-trigger round-logo"
+                type="button"
+                aria-label="Buka menu profil"
+                aria-haspopup="menu"
+                aria-expanded={showProfileMenu}
+                onClick={() => setShowProfileMenu((current) => !current)}
+              >
+                S
+              </button>
+              {showProfileMenu && (
+                <div className="profile-dropdown" role="menu">
+                  <span className="profile-name">Admin</span>
+                  <button type="button" role="menuitem" onClick={onLogout}>
+                    <SignOut size={17} /> Keluar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </header>
 
-        {page === 'Dashboard' ? (
+        {page === "Dashboard" ? (
           <>
-            <section className="range-section" aria-label="Rentang data dashboard">
-              <div className="range-tabs" role="group" aria-label="Rentang dashboard">{(['1 hari', '7 hari', '30 hari', 'Custom'] as DashboardRange[]).map((item) => <button aria-pressed={range === item} className={range === item ? 'active' : ''} onClick={() => setRange(item)} key={item}>{item}</button>)}</div>
-              {range === 'Custom' && <div className="custom-range"><label htmlFor="custom-start">Dari<input id="custom-start" type="date" value={customStart} max={customEnd} onChange={(event) => event.target.value && setCustomStart(event.target.value)} /></label><span>sampai</span><label htmlFor="custom-end">Hingga<input id="custom-end" type="date" value={customEnd} min={customStart} max={TODAY} onChange={(event) => event.target.value && setCustomEnd(event.target.value)} /></label></div>}
+            <section
+              className="range-section"
+              aria-label="Rentang data dashboard"
+            >
+              <div
+                className="range-tabs"
+                role="group"
+                aria-label="Rentang dashboard"
+              >
+                {(
+                  ["1 hari", "7 hari", "30 hari", "Custom"] as DashboardRange[]
+                ).map((item) => (
+                  <button
+                    aria-pressed={range === item}
+                    className={range === item ? "active" : ""}
+                    onClick={() => setRange(item)}
+                    key={item}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              {range === "Custom" && (
+                <div className="custom-range">
+                  <label htmlFor="custom-start">
+                    Dari
+                    <input
+                      id="custom-start"
+                      type="date"
+                      value={customStart}
+                      max={customEnd}
+                      onChange={(event) =>
+                        event.target.value && setCustomStart(event.target.value)
+                      }
+                    />
+                  </label>
+                  <span>sampai</span>
+                  <label htmlFor="custom-end">
+                    Hingga
+                    <input
+                      id="custom-end"
+                      type="date"
+                      value={customEnd}
+                      min={customStart}
+                      max={TODAY}
+                      onChange={(event) =>
+                        event.target.value && setCustomEnd(event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              )}
             </section>
             <section className="metrics" aria-label="Ringkasan keuangan">
-              <article className="metric featured"><span>Total pemasukan</span><strong>{compactRupiah(commissionTotal)}</strong><div className="progress-meta"><small>{rangeStart}</small><small>{rangeEnd}</small></div><div className="progress"><i style={{ width: `${commissionTotal ? '100%' : '0%'}` }} /></div></article>
-              <article className="metric"><span>Total pengeluaran</span><strong>{compactRupiah(expenseTotal)}</strong><div className="progress-meta"><small>{expenses.length}</small><small>transaksi</small></div><div className="progress"><i style={{ width: `${expenseTotal ? '100%' : '0%'}` }} /></div></article>
-              <article className="metric"><span>Keuntungan bersih</span><strong>{compactRupiah(netTotal)}</strong><div className="progress-meta"><small>{commissionTotal ? Math.round((netTotal / commissionTotal) * 100) : 0}%</small><small>margin</small></div><div className="progress"><i style={{ width: `${commissionTotal ? Math.max(0, Math.min(100, (netTotal / commissionTotal) * 100)) : 0}%` }} /></div></article>
-              <article className="metric"><span>Jumlah transaksi</span><strong>{filteredTransactions.length}</strong><div className="progress-meta"><small>Periode ini</small><small>{range}</small></div><div className="progress"><i style={{ width: `${Math.min(filteredTransactions.length * 10, 100)}%` }} /></div></article>
+              <article className="metric featured">
+                <span>Total pemasukan</span>
+                <strong>{compactRupiah(commissionTotal)}</strong>
+                <div className="progress-meta">
+                  <small>{rangeStart}</small>
+                  <small>{rangeEnd}</small>
+                </div>
+                <div className="progress">
+                  <i style={{ width: `${commissionTotal ? "100%" : "0%"}` }} />
+                </div>
+              </article>
+              <article className="metric">
+                <span>Total pengeluaran</span>
+                <strong>{compactRupiah(expenseTotal)}</strong>
+                <div className="progress-meta">
+                  <small>{expenses.length}</small>
+                  <small>transaksi</small>
+                </div>
+                <div className="progress">
+                  <i style={{ width: `${expenseTotal ? "100%" : "0%"}` }} />
+                </div>
+              </article>
+              <article className="metric">
+                <span>Keuntungan bersih</span>
+                <strong>{compactRupiah(netTotal)}</strong>
+                <div className="progress-meta">
+                  <small>
+                    {commissionTotal
+                      ? Math.round((netTotal / commissionTotal) * 100)
+                      : 0}
+                    %
+                  </small>
+                  <small>margin</small>
+                </div>
+                <div className="progress">
+                  <i
+                    style={{
+                      width: `${commissionTotal ? Math.max(0, Math.min(100, (netTotal / commissionTotal) * 100)) : 0}%`,
+                    }}
+                  />
+                </div>
+              </article>
+              <article className="metric">
+                <span>Jumlah transaksi</span>
+                <strong>{filteredTransactions.length}</strong>
+                <div className="progress-meta">
+                  <small>Periode ini</small>
+                  <small>{range}</small>
+                </div>
+                <div className="progress">
+                  <i
+                    style={{
+                      width: `${Math.min(filteredTransactions.length * 10, 100)}%`,
+                    }}
+                  />
+                </div>
+              </article>
             </section>
-            <section className="top-trader-card" aria-label="Semua pedagang berdasarkan komisi"><div className="top-trader-heading"><span>Pedagang dengan komisi terbanyak</span><small>Semua pedagang · periode yang dipilih</small></div>{topTraders.length ? <><div className={`top-trader-list${hasMoreTopTraders && !showAllTopTraders ? ' is-collapsed' : ''}`}>{visibleTopTraders.map((trader, index) => <div className="top-trader-row" key={trader.name}><span className="top-trader-rank">#{index + 1}</span><strong>{trader.name}</strong><b>{rupiah(trader.amount)}</b></div>)}</div>{hasMoreTopTraders && <button className="top-trader-toggle" type="button" onClick={() => setExpandedTopTraderRange((current) => current === topTraderRangeKey ? null : topTraderRangeKey)}>{showAllTopTraders ? 'Tampilkan lebih sedikit' : `Lihat semua (${topTraders.length})`}</button>}</> : <p className="top-trader-empty">Catat komisi untuk melihat peringkat pedagang.</p>}</section>
+            <section
+              className="top-trader-card"
+              aria-label="Semua supplier berdasarkan pemasukan"
+            >
+              <div className="top-trader-heading">
+                <span>Supplier dengan pemasukan terbanyak</span>
+                <small>Semua supplier · periode yang dipilih</small>
+              </div>
+              {topTraders.length ? (
+                <>
+                  <div
+                    className={`top-trader-list${hasMoreTopTraders && !showAllTopTraders ? " is-collapsed" : ""}`}
+                  >
+                    {visibleTopTraders.map((trader, index) => (
+                      <div className="top-trader-row" key={trader.name}>
+                        <span className="top-trader-rank">#{index + 1}</span>
+                        <strong>{trader.name}</strong>
+                        <b>{rupiah(trader.amount)}</b>
+                      </div>
+                    ))}
+                  </div>
+                  {hasMoreTopTraders && (
+                    <button
+                      className="top-trader-toggle"
+                      type="button"
+                      onClick={() =>
+                        setExpandedTopTraderRange((current) =>
+                          current === topTraderRangeKey
+                            ? null
+                            : topTraderRangeKey,
+                        )
+                      }
+                    >
+                      {showAllTopTraders
+                        ? "Tampilkan lebih sedikit"
+                        : `Lihat semua (${topTraders.length})`}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="top-trader-empty">
+                  Catat pemasukan untuk melihat peringkat Supplier.
+                </p>
+              )}
+            </section>
 
             <section className="dashboard-grid">
               <article className="chart-section">
-                <div className="section-heading"><div><h2>Arus keuangan</h2><p>{displayDate(rangeStart)} sampai {displayDate(rangeEnd)}</p></div></div>
-                <div className="chart">
-                  <div className="chart-labels"><span>4 jt</span><span>3 jt</span><span>2 jt</span><span>1 jt</span><span>0</span></div>
-                  <div className="bars" role="img" aria-label="Grafik arus keuangan berdasarkan rentang yang dipilih">{buildChartBuckets(filteredTransactions, rangeStart, rangeEnd).map((bucket) => <div className="bar-group" key={bucket.label}><div className="bar commission-bar" style={{ height: `${bucket.commissionPercent}%` }} /><div className="bar expense-bar" style={{ height: `${bucket.expensePercent}%` }} /><small>{bucket.label}</small></div>)}</div>
+                <div className="section-heading">
+                  <div>
+                    <h2>Arus keuangan</h2>
+                    <p>
+                      {displayDate(rangeStart)} sampai {displayDate(rangeEnd)}
+                    </p>
+                  </div>
                 </div>
-                <div className="legend"><span><i /> Komisi</span><span><i /> Pengeluaran</span></div>
-                <table className="chart-data-table"><caption>Data arus keuangan</caption><thead><tr><th scope="col">Periode</th><th scope="col">Komisi</th><th scope="col">Pengeluaran</th></tr></thead><tbody>{buildChartBuckets(filteredTransactions, rangeStart, rangeEnd).map((bucket) => <tr key={`data-${bucket.label}`}><td>{bucket.label}</td><td>{rupiah(bucket.commission)}</td><td>{rupiah(bucket.expense)}</td></tr>)}</tbody></table>
+                <div className="chart">
+                  <div className="chart-labels">
+                    <span>4 jt</span>
+                    <span>3 jt</span>
+                    <span>2 jt</span>
+                    <span>1 jt</span>
+                    <span>0</span>
+                  </div>
+                  <div
+                    className="bars"
+                    role="img"
+                    aria-label="Grafik arus keuangan berdasarkan rentang yang dipilih"
+                  >
+                    {buildChartBuckets(
+                      filteredTransactions,
+                      rangeStart,
+                      rangeEnd,
+                    ).map((bucket) => (
+                      <div className="bar-group" key={bucket.label}>
+                        <div
+                          className="bar commission-bar"
+                          style={{ height: `${bucket.commissionPercent}%` }}
+                        />
+                        <div
+                          className="bar expense-bar"
+                          style={{ height: `${bucket.expensePercent}%` }}
+                        />
+                        <small>{bucket.label}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="legend">
+                  <span>
+                    <i /> Pemasukan
+                  </span>
+                  <span>
+                    <i /> Pengeluaran
+                  </span>
+                </div>
+                <table className="chart-data-table">
+                  <caption>Data arus keuangan</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Periode</th>
+                      <th scope="col">Pemasukan</th>
+                      <th scope="col">Pengeluaran</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buildChartBuckets(
+                      filteredTransactions,
+                      rangeStart,
+                      rangeEnd,
+                    ).map((bucket) => (
+                      <tr key={`data-${bucket.label}`}>
+                        <td>{bucket.label}</td>
+                        <td>{rupiah(bucket.commission)}</td>
+                        <td>{rupiah(bucket.expense)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </article>
 
               <article className="transaction-section">
-                <div className="section-heading"><div><h2>Transaksi terbaru</h2><p>Catatan yang baru dibuat</p></div><button className="text-button" onClick={() => navigate('Laporan')}>Lihat semua</button></div>
-                <div className="transaction-list">{filteredTransactions.length ? filteredTransactions.slice(0, 5).map((item) => <div className="transaction-row" key={item.id}><span className="transaction-icon">{item.type === 'Komisi' ? <ArrowDown size={20} weight="bold" /> : <ArrowUp size={20} weight="bold" />}</span><div><strong>{item.name}</strong><small>{displayDate(item.date)} · {item.time}</small></div><span className="transaction-type">{item.type}</span><b>{item.type === 'Komisi' ? '+' : '-'}{rupiah(item.amount)}</b></div>) : <div className="empty-list"><strong>Belum ada transaksi</strong><span>Tidak ada catatan pada rentang ini.</span></div>}</div>
+                <div className="section-heading">
+                  <div>
+                    <h2>Transaksi terbaru</h2>
+                    <p>Catatan yang baru dibuat</p>
+                  </div>
+                  <button
+                    className="text-button"
+                    onClick={() => navigate("Laporan")}
+                  >
+                    Lihat semua
+                  </button>
+                </div>
+                <div className="transaction-list">
+                  {filteredTransactions.length ? (
+                    filteredTransactions.slice(0, 5).map((item) => (
+                      <div className="transaction-row" key={item.id}>
+                        <span className="transaction-icon">
+                          {item.type === "Komisi" ? (
+                            <ArrowDown size={20} weight="bold" />
+                          ) : (
+                            <ArrowUp size={20} weight="bold" />
+                          )}
+                        </span>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {displayDate(item.date)} · {item.time}
+                          </small>
+                        </div>
+                        <span className="transaction-type">{item.type === "Komisi" ? "Pemasukan" : item.type}</span>
+                        <b className={item.type === "Komisi" ? "transaction-amount income-amount" : "transaction-amount expense-amount"}>
+                          {item.type === "Komisi" ? "+" : "-"}
+                          {rupiah(item.amount)}
+                        </b>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="empty-list">
+                      <strong>Belum ada transaksi</strong>
+                      <span>Tidak ada catatan pada rentang ini.</span>
+                    </div>
+                  )}
+                </div>
               </article>
             </section>
           </>
         ) : (
           <section className="reports">
-            <div className="section-heading report-heading"><div><h2>Laporan keuangan</h2><p>Periksa transaksi atau ringkasan tahunan.</p></div><button className="secondary" onClick={() => setShowExpenseNameModal(true)}>Kelola nama pengeluaran</button></div>
-            <div className="report-tabs" role="group" aria-label="Jenis laporan"><button aria-pressed={reportView === 'Transaksi'} className={reportView === 'Transaksi' ? 'active' : ''} onClick={() => setReportView('Transaksi')}>Transaksi</button><button aria-pressed={reportView === 'Tahunan'} className={reportView === 'Tahunan' ? 'active' : ''} onClick={() => setReportView('Tahunan')}>Tahunan</button></div>
-            {reportView === 'Transaksi' ? <DailyReports transactions={transactions} remoteRows={remoteDailyRows} remoteTotal={remoteDailyTotal} remotePage={remoteReportPage} onRemotePageChange={setRemoteReportPage} remoteLoading={remoteLoading} onEdit={setEditingTransaction} onDelete={handleDeleteTransaction} /> : <AnnualReport year={reportYear} years={reportYears} onYearChange={setReportYear} rows={remoteYearlyRows ?? yearlyRows} commission={(remoteYearlyRows ?? yearlyRows).reduce((total, row) => total + row.commission, 0)} expense={(remoteYearlyRows ?? yearlyRows).reduce((total, row) => total + row.expense, 0)} />}
+            <div className="section-heading report-heading">
+              <div>
+                <h2>Laporan keuangan</h2>
+                <p>Periksa transaksi atau ringkasan tahunan.</p>
+              </div>
+              <button
+                className="secondary"
+                onClick={() => setShowExpenseNameModal(true)}
+              >
+                Kelola nama pengeluaran
+              </button>
+            </div>
+            <div
+              className="report-tabs"
+              role="group"
+              aria-label="Jenis laporan"
+            >
+              <button
+                aria-pressed={reportView === "Transaksi"}
+                className={reportView === "Transaksi" ? "active" : ""}
+                onClick={() => setReportView("Transaksi")}
+              >
+                Transaksi
+              </button>
+              <button
+                aria-pressed={reportView === "Tahunan"}
+                className={reportView === "Tahunan" ? "active" : ""}
+                onClick={() => setReportView("Tahunan")}
+              >
+                Tahunan
+              </button>
+            </div>
+            {reportView === "Transaksi" ? (
+              <DailyReports
+                transactions={transactions}
+                remoteRows={remoteDailyRows}
+                remoteTotal={remoteDailyTotal}
+                remotePage={remoteReportPage}
+                onRemotePageChange={setRemoteReportPage}
+                remoteLoading={remoteLoading}
+                onEdit={setEditingTransaction}
+                onDelete={handleDeleteTransaction}
+              />
+            ) : (
+              <AnnualReport
+                year={reportYear}
+                years={reportYears}
+                onYearChange={setReportYear}
+                rows={remoteYearlyRows ?? yearlyRows}
+                commission={(remoteYearlyRows ?? yearlyRows).reduce(
+                  (total, row) => total + row.commission,
+                  0,
+                )}
+                expense={(remoteYearlyRows ?? yearlyRows).reduce(
+                  (total, row) => total + row.expense,
+                  0,
+                )}
+              />
+            )}
           </section>
         )}
-        {notice && <div className="notice" role="status">{notice}</div>}
+        {notice && (
+          <div className="notice" role="status">
+            {notice}
+          </div>
+        )}
       </main>
 
       <nav className="mobile-nav" aria-label="Navigasi mobile">
-        <button className={page === 'Dashboard' ? 'active' : ''} onClick={() => navigate('Dashboard')} aria-current={page === 'Dashboard' ? 'page' : undefined}><span className="mobile-nav-icon"><SquaresFour size={23} weight={page === 'Dashboard' ? 'fill' : 'regular'} /></span><span>Dashboard</span></button>
-        <button className="mobile-add" onClick={() => openModal()} aria-label="Tambah transaksi"><span className="mobile-nav-icon"><Plus size={24} weight="bold" /></span><span>Catat</span></button>
-        <button className={page === 'Laporan' ? 'active' : ''} onClick={() => navigate('Laporan')} aria-current={page === 'Laporan' ? 'page' : undefined}><span className="mobile-nav-icon"><Receipt size={23} weight={page === 'Laporan' ? 'fill' : 'regular'} /></span><span>Laporan</span></button>
+        <button
+          className={page === "Dashboard" ? "active" : ""}
+          onClick={() => navigate("Dashboard")}
+          aria-current={page === "Dashboard" ? "page" : undefined}
+        >
+          <span className="mobile-nav-icon">
+            <SquaresFour
+              size={23}
+              weight={page === "Dashboard" ? "fill" : "regular"}
+            />
+          </span>
+          <span>Dashboard</span>
+        </button>
+        <button
+          className="mobile-add"
+          onClick={() => openModal()}
+          aria-label="Tambah transaksi"
+        >
+          <span className="mobile-nav-icon">
+            <Plus size={24} weight="bold" />
+          </span>
+          <span>Catat</span>
+        </button>
+        <button
+          className={page === "Laporan" ? "active" : ""}
+          onClick={() => navigate("Laporan")}
+          aria-current={page === "Laporan" ? "page" : undefined}
+        >
+          <span className="mobile-nav-icon">
+            <Receipt
+              size={23}
+              weight={page === "Laporan" ? "fill" : "regular"}
+            />
+          </span>
+          <span>Laporan</span>
+        </button>
       </nav>
 
-      {showModal && <div className="modal-backdrop" onClick={() => setShowModal(false)}><div className="sr-only" aria-live="polite">Form pencatatan transaksi terbuka</div>
-        <form className="modal" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title" onSubmit={saveTransaction} onClick={(event) => event.stopPropagation()}>
-          <button type="button" className="close" onClick={() => setShowModal(false)} aria-label="Tutup"><X size={22} /></button>
-          <h2 id="transaction-modal-title">Catat transaksi</h2>
-          <p>Pilih jenis transaksi lalu isi data.</p>
-          <div className="tabs" role="group" aria-label="Jenis transaksi">
-            <button type="button" aria-pressed={formType === 'Komisi'} className={formType === 'Komisi' ? 'active' : ''} onClick={() => changeFormType('Komisi')}>Komisi</button>
-            <button type="button" aria-pressed={formType === 'Pengeluaran'} className={formType === 'Pengeluaran' ? 'active' : ''} onClick={() => changeFormType('Pengeluaran')}>Pengeluaran</button>
+      {showModal && (
+        <div className="modal-backdrop" onClick={() => setShowModal(false)}>
+          <div className="sr-only" aria-live="polite">
+            Form pencatatan transaksi terbuka
           </div>
-          <label className="transaction-date">Tanggal transaksi<input name="date" type="date" defaultValue={TODAY} autoFocus required /></label>
-          <div className="batch-heading"><div><strong>{formType === 'Komisi' ? 'Daftar pedagang' : 'Daftar pengeluaran'}</strong><span>Isi semua baris yang ingin disimpan sekaligus.</span></div><span>{batchEntries.length} baris</span></div>
-          <div className="batch-list">
-            {batchEntries.map((entry, index) => <section className="batch-row" key={entry.id}>
-              <div className="batch-row-head"><strong>{formType === 'Komisi' ? `Pedagang ${index + 1}` : `Pengeluaran ${index + 1}`}</strong>{batchEntries.length > 1 && <button type="button" onClick={() => removeBatchEntry(entry.id)} aria-label={`Hapus baris ${index + 1}`}><Trash size={17} /></button>}</div>
-              {formType === 'Komisi' ? <label>Nama pedagang<input list="trader-suggestions" value={entry.name} onChange={(event) => updateBatchEntry(entry.id, 'name', event.target.value)} placeholder="Ketik atau pilih nama" autoComplete="off" required /></label> : <>
-                <label>Nama pengeluaran<select value={entry.name} onChange={(event) => updateBatchEntry(entry.id, 'name', event.target.value)} required>{expenseNames.map((expenseName) => <option value={expenseName} key={expenseName}>{expenseName}</option>)}<option value={NEW_EXPENSE}>+ Buat pengeluaran baru</option></select></label>
-                {entry.name === NEW_EXPENSE && <label className="new-expense-field">Pengeluaran baru<input value={entry.customName} onChange={(event) => updateBatchEntry(entry.id, 'customName', event.target.value)} placeholder="Contoh: Perawatan mesin" required /></label>}
-              </>}
-              <label>Jumlah<div className="money-field"><span>Rp</span><input className="money-input" type="text" inputMode="numeric" value={entry.amount} onChange={(event) => updateBatchEntry(entry.id, 'amount', event.target.value)} placeholder="0" required /></div></label>
-            </section>)}
-          </div>
-          {formType === 'Komisi' && <datalist id="trader-suggestions">{traderNames.map((traderName) => <option value={traderName} key={traderName} />)}</datalist>}
-          <button className="add-batch-button" type="button" onClick={addBatchEntry}><Plus size={18} weight="bold" /> {formType === 'Komisi' ? 'Tambah pedagang' : 'Tambah pengeluaran'}</button>
-          <label className="notes-toggle"><input type="checkbox" checked={showNotes} onChange={(event) => setShowNotes(event.target.checked)} /><span>Tambahkan catatan</span></label>
-          {showNotes && <label className="notes-field">Catatan <span>(opsional)</span><textarea name="note" rows={3} placeholder="Tambahkan keterangan untuk transaksi ini" /></label>}
-          {formError && <p className="form-error" role="alert">{formError}</p>}
-          <button className="primary save-button" type="submit">Simpan {batchEntries.length} {formType.toLowerCase()}</button>
-        </form>
-      </div>}
-      {editingTransaction && <EditTransactionModal transaction={editingTransaction} onClose={() => setEditingTransaction(null)} onSave={handleEditTransaction} />}
-      {showExpenseNameModal && <ExpenseNameModal items={expenseNameItems} value={expenseName} editingId={editingExpenseNameId} onNameChange={setExpenseName} onEdit={(item) => { setEditingExpenseNameId(item.id); setExpenseName(item.name) }} onDelete={handleDeleteExpenseName} onSave={saveExpenseName} onClose={() => { setShowExpenseNameModal(false); setExpenseName(''); setEditingExpenseNameId(null) }} />}
+          <form
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transaction-modal-title"
+            onSubmit={saveTransaction}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="close"
+              onClick={() => setShowModal(false)}
+              aria-label="Tutup"
+            >
+              <X size={22} />
+            </button>
+            <h2 id="transaction-modal-title">Catat transaksi</h2>
+            <p>Pilih jenis transaksi lalu isi data.</p>
+            <div className="tabs" role="group" aria-label="Jenis transaksi">
+              <button
+                type="button"
+                aria-pressed={formType === "Komisi"}
+                className={formType === "Komisi" ? "active" : ""}
+                onClick={() => changeFormType("Komisi")}
+              >
+                Pemasukan
+              </button>
+              <button
+                type="button"
+                aria-pressed={formType === "Pengeluaran"}
+                className={formType === "Pengeluaran" ? "active" : ""}
+                onClick={() => changeFormType("Pengeluaran")}
+              >
+                Pengeluaran
+              </button>
+            </div>
+            <label className="transaction-date">
+              Tanggal transaksi
+              <input
+                name="date"
+                type="date"
+                defaultValue={TODAY}
+                autoFocus
+                required
+              />
+            </label>
+            <div className="batch-heading">
+              <div>
+                <strong>
+                  {formType === "Komisi"
+                    ? "Daftar pemasukan"
+                    : "Daftar pengeluaran"}
+                </strong>
+                <span>Isi semua baris yang ingin disimpan sekaligus.</span>
+              </div>
+              <span>{batchEntries.length} baris</span>
+            </div>
+            <div className="batch-list">
+              {batchEntries.map((entry, index) => (
+                <section className="batch-row" key={entry.id}>
+                  <div className="batch-row-head">
+                    <strong>
+                      {formType === "Komisi"
+                        ? `Pemasukan ${index + 1}`
+                        : `Pengeluaran ${index + 1}`}
+                    </strong>
+                    {batchEntries.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeBatchEntry(entry.id)}
+                        aria-label={`Hapus baris ${index + 1}`}
+                      >
+                        <Trash size={17} />
+                      </button>
+                    )}
+                  </div>
+                  {formType === "Komisi" ? (
+                    <label>
+                      Nama supplier
+                      <input
+                        list="trader-suggestions"
+                        value={entry.name}
+                        onChange={(event) =>
+                          updateBatchEntry(entry.id, "name", event.target.value)
+                        }
+                        placeholder="Ketik atau pilih nama"
+                        autoComplete="off"
+                        required
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label>
+                        Nama pengeluaran
+                        <select
+                          value={entry.name}
+                          onChange={(event) =>
+                            updateBatchEntry(
+                              entry.id,
+                              "name",
+                              event.target.value,
+                            )
+                          }
+                          required
+                        >
+                          {expenseNames.map((expenseName) => (
+                            <option value={expenseName} key={expenseName}>
+                              {expenseName}
+                            </option>
+                          ))}
+                          <option value={NEW_EXPENSE}>
+                            + Buat pengeluaran baru
+                          </option>
+                        </select>
+                      </label>
+                      {entry.name === NEW_EXPENSE && (
+                        <label className="new-expense-field">
+                          Pengeluaran baru
+                          <input
+                            value={entry.customName}
+                            onChange={(event) =>
+                              updateBatchEntry(
+                                entry.id,
+                                "customName",
+                                event.target.value,
+                              )
+                            }
+                            placeholder="Contoh: Perawatan mesin"
+                            required
+                          />
+                        </label>
+                      )}
+                    </>
+                  )}
+                  <label>
+                    Jumlah
+                    <div className="money-field">
+                      <span>Rp</span>
+                      <input
+                        className="money-input"
+                        type="text"
+                        inputMode="numeric"
+                        value={entry.amount}
+                        onChange={(event) =>
+                          updateBatchEntry(
+                            entry.id,
+                            "amount",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="0"
+                        required
+                      />
+                    </div>
+                  </label>
+                </section>
+              ))}
+            </div>
+            {formType === "Komisi" && (
+              <datalist id="trader-suggestions">
+                {traderNames.map((traderName) => (
+                  <option value={traderName} key={traderName} />
+                ))}
+              </datalist>
+            )}
+            <button
+              className="add-batch-button"
+              type="button"
+              onClick={addBatchEntry}
+            >
+              <Plus size={18} weight="bold" />{" "}
+              {formType === "Komisi" ? "Tambah pemasukan" : "Tambah pengeluaran"}
+            </button>
+            <label className="notes-toggle">
+              <input
+                type="checkbox"
+                checked={showNotes}
+                onChange={(event) => setShowNotes(event.target.checked)}
+              />
+              <span>Tambahkan catatan</span>
+            </label>
+            {showNotes && (
+              <label className="notes-field">
+                Catatan <span>(opsional)</span>
+                <textarea
+                  name="note"
+                  rows={3}
+                  placeholder="Tambahkan keterangan untuk transaksi ini"
+                />
+              </label>
+            )}
+            {formError && (
+              <p className="form-error" role="alert">
+                {formError}
+              </p>
+            )}
+            <button className="primary save-button" type="submit">
+              Simpan {batchEntries.length} {formType === "Komisi" ? "pemasukan" : "pengeluaran"}
+            </button>
+          </form>
+        </div>
+      )}
+      {editingTransaction && (
+        <EditTransactionModal
+          transaction={editingTransaction}
+          onClose={() => setEditingTransaction(null)}
+          onSave={handleEditTransaction}
+        />
+      )}
+      {showExpenseNameModal && (
+        <ExpenseNameModal
+          items={expenseNameItems}
+          value={expenseName}
+          editingId={editingExpenseNameId}
+          onNameChange={setExpenseName}
+          onEdit={(item) => {
+            setEditingExpenseNameId(item.id);
+            setExpenseName(item.name);
+          }}
+          onDelete={handleDeleteExpenseName}
+          onSave={saveExpenseName}
+          onClose={() => {
+            setShowExpenseNameModal(false);
+            setExpenseName("");
+            setEditingExpenseNameId(null);
+          }}
+        />
+      )}
     </div>
-  )
+  );
 }
 
 function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRemotePageChange, remoteLoading, onEdit, onDelete }: { transactions: Transaction[]; remoteRows: DailyReportRow[] | null; remoteTotal: number; remotePage: number; onRemotePageChange: (page: number) => void; remoteLoading: boolean; onEdit: (transaction: Transaction) => void; onDelete: (transaction: Transaction) => void }) {
@@ -608,7 +1204,7 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
   const [exportMonth, setExportMonth] = useState(availableMonths[0] ?? TODAY.slice(0, 7))
   const grouped = remoteRows
       ? remoteRows.map((row): [string, Transaction[]] => [row.report_date, [
-      ...row.commission_items.map((item): Transaction => ({ id: item.id, type: 'Komisi', name: item.name, category: 'Komisi ikan', date: row.report_date, time: new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }), amount: Number(item.amount), note: item.notes ?? '-' })),
+      ...row.commission_items.map((item): Transaction => ({ id: item.id, type: 'Komisi', name: item.name, category: 'Pemasukan ikan', date: row.report_date, time: new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }), amount: Number(item.amount), note: item.notes ?? '-' })),
       ...row.expense_items.map((item): Transaction => ({ id: item.id, type: 'Pengeluaran', name: item.name, category: 'Pengeluaran', date: row.report_date, time: new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }), amount: Number(item.amount), note: item.notes ?? '-' })),
     ]])
     : Object.entries(transactions.reduce<Record<string, Transaction[]>>((days, item) => {
@@ -631,7 +1227,20 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
   const exportMonthly = async (format: ExportFormat) => {
     const items = transactions.filter((item) => item.date.startsWith(exportMonth))
     const [year, month] = exportMonth.split('-')
-    await exportReport(format, `Laporan ${MONTHS[Number(month) - 1]} ${year}`, `laporan-bulanan-${exportMonth}`, reportRows(items))
+    const title = `Laporan ${MONTHS[Number(month) - 1]} ${year}`
+    if (format === 'pdf') {
+      await exportMonthlyPdf(title, `laporan-bulanan-${exportMonth}`, items.map((item) => ({
+        date: displayDate(item.date),
+        type: item.type === 'Komisi' ? 'Pemasukan' : 'Pengeluaran',
+        time: item.time,
+        name: item.name,
+        category: item.category,
+        note: item.note,
+        amount: item.amount,
+      })))
+      return
+    }
+    await exportReport(format, title, `laporan-bulanan-${exportMonth}`, reportRows(items))
   }
 
   return <section className="daily-reports">
@@ -645,7 +1254,7 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
       return <article className="daily-card" key={date}>
         <header className="daily-card-header"><div><h2>{displayDate(date)}</h2><p>{items.length} transaksi tercatat</p></div><div className="daily-card-actions"><strong className={`daily-net-header ${commissionTotal - expenseTotal >= 0 ? 'is-profit' : 'is-loss'}`}>{rupiah(commissionTotal - expenseTotal)}</strong><ExportButtons compact onExport={(format) => exportDaily(format, date, items)} /></div></header>
         <div className="daily-columns">
-          <section className="daily-column income-column"><div className="daily-column-title"><span className="daily-icon"><ArrowDown size={18} weight="bold" /></span><div><h3>Pemasukan</h3><p>{commissions.length} transaksi</p></div></div><div className="daily-items">{commissions.length ? commissions.map((item) => <DailyItem item={item} sign="+" onEdit={onEdit} onDelete={onDelete} key={item.id} />) : <p className="daily-empty">Tidak ada komisi.</p>}</div></section>
+           <section className="daily-column income-column"><div className="daily-column-title"><span className="daily-icon"><ArrowDown size={18} weight="bold" /></span><div><h3>Pemasukan</h3><p>{commissions.length} transaksi</p></div></div><div className="daily-items">{commissions.length ? commissions.map((item) => <DailyItem item={item} sign="+" onEdit={onEdit} onDelete={onDelete} key={item.id} />) : <p className="daily-empty">Tidak ada pemasukan.</p>}</div></section>
           <section className="daily-column expense-column"><div className="daily-column-title"><span className="daily-icon"><ArrowUp size={18} weight="bold" /></span><div><h3>Pengeluaran</h3><p>{expenses.length} transaksi</p></div></div><div className="daily-items">{expenses.length ? expenses.map((item) => <DailyItem item={item} sign="-" onEdit={onEdit} onDelete={onDelete} key={item.id} />) : <p className="daily-empty">Tidak ada pengeluaran.</p>}</div></section>
         </div>
         <footer className="daily-totals"><div className="income-total"><span>Total pemasukan</span><strong>{rupiah(commissionTotal)}</strong></div><div className="expense-total"><span>Total pengeluaran</span><strong>{rupiah(expenseTotal)}</strong></div><div className={`daily-net ${commissionTotal - expenseTotal >= 0 ? 'is-profit' : 'is-loss'}`}><span>{commissionTotal - expenseTotal >= 0 ? 'Laba bersih' : 'Rugi bersih'}</span><strong>{rupiah(commissionTotal - expenseTotal)}</strong></div></footer>
@@ -669,7 +1278,7 @@ function EditTransactionModal({ transaction, onClose, onSave }: { transaction: T
     await onSave({ ...draft, name: draft.name.trim(), note: draft.note.trim() || '-' })
     setSaving(false)
   }
-  return <div className="modal-backdrop" onClick={onClose}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" onClick={(event) => event.stopPropagation()} onSubmit={save}><button type="button" className="close" onClick={onClose} aria-label="Tutup"><X size={22} /></button><h2 id="edit-modal-title">Edit transaksi</h2><p>Perbarui data {transaction.type.toLowerCase()}.</p><label>Nama<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label><div className="form-grid"><label>Tanggal<input type="date" value={draft.date} max={TODAY} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required /></label><label>Jumlah<div className="money-field"><span>Rp</span><input className="money-input" type="text" inputMode="numeric" value={draft.amount ? new Intl.NumberFormat('id-ID').format(draft.amount) : ''} onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value.replace(/\D/g, '')) })} required /></div></label></div><label>Catatan<textarea rows={3} value={draft.note === '-' ? '' : draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></label><button className="primary save-button" disabled={saving} type="submit">{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></form></div>
+  return <div className="modal-backdrop" onClick={onClose}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" onClick={(event) => event.stopPropagation()} onSubmit={save}><button type="button" className="close" onClick={onClose} aria-label="Tutup"><X size={22} /></button><h2 id="edit-modal-title">Edit transaksi</h2><p>Perbarui data {transaction.type === 'Komisi' ? 'pemasukan' : 'pengeluaran'}.</p><label>Nama<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label><div className="form-grid"><label>Tanggal<input type="date" value={draft.date} max={TODAY} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required /></label><label>Jumlah<div className="money-field"><span>Rp</span><input className="money-input" type="text" inputMode="numeric" value={draft.amount ? new Intl.NumberFormat('id-ID').format(draft.amount) : ''} onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value.replace(/\D/g, '')) })} required /></div></label></div><label>Catatan<textarea rows={3} value={draft.note === '-' ? '' : draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></label><button className="primary save-button" disabled={saving} type="submit">{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></form></div>
 }
 
 function ExpenseNameModal({ items, value, editingId, onNameChange, onEdit, onDelete, onSave, onClose }: { items: RemoteExpenseName[]; value: string; editingId: string | null; onNameChange: (value: string) => void; onEdit: (item: RemoteExpenseName) => void; onDelete: (item: RemoteExpenseName) => void; onSave: (event: React.FormEvent<HTMLFormElement>) => Promise<void>; onClose: () => void }) {
@@ -678,10 +1287,10 @@ function ExpenseNameModal({ items, value, editingId, onNameChange, onEdit, onDel
 
 function AnnualReport({ year, years, onYearChange, rows, commission, expense }: { year: string; years: string[]; onYearChange: (year: string) => void; rows: { month: string; commission: number; expense: number; net: number }[]; commission: number; expense: number }) {
   const exportAnnual = async (format: ExportFormat) => {
-    await exportReport(format, `Laporan tahunan ${year}`, `laporan-tahunan-${year}`, rows.map((row) => ({ Bulan: row.month, Komisi: row.commission, Pengeluaran: row.expense, 'Laba Bersih': row.net })))
+    await exportReport(format, `Laporan tahunan ${year}`, `laporan-tahunan-${year}`, rows.map((row) => ({ Bulan: row.month, Pemasukan: row.commission, Pengeluaran: row.expense, 'Laba Bersih': row.net })))
   }
 
-  return <section className="annual-report"><div className="annual-heading"><div><h2>Ringkasan {year}</h2><p>Rekap keuangan dari Januari sampai Desember.</p></div><div className="annual-actions"><label>Tahun<select value={year} onChange={(event) => onYearChange(event.target.value)}>{years.map((option) => <option key={option}>{option}</option>)}</select></label><ExportButtons onExport={exportAnnual} /></div></div><div className="annual-summary"><div><span>Total pemasukan</span><strong className="annual-income-amount">{rupiah(commission)}</strong></div><div><span>Total pengeluaran</span><strong className="annual-expense-amount">{rupiah(expense)}</strong></div><div className="annual-net"><span>Laba tahunan</span><strong>{rupiah(commission - expense)}</strong></div></div><div className="table-wrap annual-table"><table><caption className="sr-only">Ringkasan keuangan per bulan untuk tahun {year}</caption><thead><tr><th scope="col">Bulan</th><th scope="col">Komisi</th><th scope="col">Pengeluaran</th><th scope="col">Laba bersih</th></tr></thead><tbody>{rows.map((row) => <tr key={row.month}><td data-label="Bulan"><strong>{row.month}</strong></td><td data-label="Komisi" className="annual-income-amount">{rupiah(row.commission)}</td><td data-label="Pengeluaran" className="annual-expense-amount">{rupiah(row.expense)}</td><td data-label="Laba bersih" className="table-amount">{rupiah(row.net)}</td></tr>)}</tbody></table></div></section>
+ return <section className="annual-report"><div className="annual-heading"><div><h2>Ringkasan {year}</h2><p>Rekap keuangan dari Januari sampai Desember.</p></div><div className="annual-actions"><label>Tahun<select value={year} onChange={(event) => onYearChange(event.target.value)}>{years.map((option) => <option key={option}>{option}</option>)}</select></label><ExportButtons onExport={exportAnnual} /></div></div><div className="annual-summary"><div><span>Total pemasukan</span><strong className="annual-income-amount">{rupiah(commission)}</strong></div><div><span>Total pengeluaran</span><strong className="annual-expense-amount">{rupiah(expense)}</strong></div><div className="annual-net"><span>Laba tahunan</span><strong>{rupiah(commission - expense)}</strong></div></div><div className="table-wrap annual-table"><table><caption className="sr-only">Ringkasan keuangan per bulan untuk tahun {year}</caption><thead><tr><th scope="col">Bulan</th><th scope="col">Pemasukan</th><th scope="col">Pengeluaran</th><th scope="col">Laba bersih</th></tr></thead><tbody>{rows.map((row) => <tr key={row.month}><td data-label="Bulan"><strong>{row.month}</strong></td><td data-label="Pemasukan" className="annual-income-amount">{rupiah(row.commission)}</td><td data-label="Pengeluaran" className="annual-expense-amount">{rupiah(row.expense)}</td><td data-label="Laba bersih" className="table-amount">{rupiah(row.net)}</td></tr>)}</tbody></table></div></section>
 }
 
 function ExportButtons({ onExport, compact = false }: { onExport: (format: ExportFormat) => Promise<void> | void; compact?: boolean }) {
