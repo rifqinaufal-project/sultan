@@ -14,7 +14,7 @@ import {
   Trash,
   X,
 } from '@phosphor-icons/react'
-import { exportMonthlyPdf, exportReport, type ExportFormat } from './lib/exportReport'
+import { exportMonthlyPdf, exportReport, exportStatementPdf, type ExportFormat } from './lib/exportReport'
 import { createExpenseName, deleteExpenseName, deleteTransaction, isRemoteDataAvailable, loadDailyReports, loadExpenseNames, loadTransactions, loadTopTrader, loadTraders, loadYearlyReports, saveBatch, updateExpenseName, updateTransaction, type DailyReportRow, type RemoteExpenseName } from './lib/financeRepository'
 import './App.css'
 
@@ -230,6 +230,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const topTraderRangeKey = `${rangeStart}:${rangeEnd}`
   const showAllTopTraders = expandedTopTraderRange === topTraderRangeKey
   const visibleTopTraders = showAllTopTraders ? topTraders : topTraders.slice(0, TOP_TRADER_PREVIEW_COUNT)
+  const topExpenses = Array.from(new Set(expenses.map((item) => item.name))).map((name) => ({ name, amount: expenses.filter((item) => item.name === name).reduce((total, item) => total + item.amount, 0) })).sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name))
   const yearlyTransactions = transactions.filter((item) => item.date.startsWith(reportYear))
   const yearlyRows = MONTHS.map((month, index) => {
     const monthKey = `${reportYear}-${String(index + 1).padStart(2, '0')}`
@@ -729,6 +730,30 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 </p>
               )}
             </section>
+            <section
+              className="top-trader-card expense-ranking-card"
+              aria-label="Semua nama pengeluaran berdasarkan total pengeluaran"
+            >
+              <div className="top-trader-heading">
+                <span>Pengeluaran terbesar berdasarkan nama</span>
+                <small>Semua nama pengeluaran · periode yang dipilih</small>
+              </div>
+              {topExpenses.length ? (
+                <div className="top-trader-list">
+                  {topExpenses.map((expense, index) => (
+                    <div className="top-trader-row" key={expense.name}>
+                      <span className="top-trader-rank">#{index + 1}</span>
+                      <strong>{expense.name}</strong>
+                      <b>{rupiah(expense.amount)}</b>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="top-trader-empty">
+                  Catat pengeluaran untuk melihat peringkat nama pengeluaran.
+                </p>
+              )}
+            </section>
 
             <section className="dashboard-grid">
               <article className="chart-section">
@@ -1221,6 +1246,18 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
   }
 
   const exportDaily = async (format: ExportFormat, date: string, items: Transaction[]) => {
+    if (format === 'pdf') {
+      await exportStatementPdf(`Laporan harian`, `laporan-harian-${date}`, items.map((item) => ({
+        date,
+        type: item.type === 'Komisi' ? 'Pemasukan' : 'Pengeluaran',
+        time: item.time,
+        name: item.name,
+        category: item.category,
+        note: item.note,
+        amount: item.amount,
+      })))
+      return
+    }
     await exportReport(format, `Laporan harian ${displayDate(date)}`, `laporan-harian-${date}`, reportRows(items))
   }
 

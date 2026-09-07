@@ -10,6 +10,8 @@ export type MonthlyExportRow = {
   amount: number
 }
 
+type StatementRow = MonthlyExportRow
+
 const incomeColor: [number, number, number] = [23, 131, 75]
 const expenseColor: [number, number, number] = [196, 61, 61]
 
@@ -28,20 +30,101 @@ const formatPdfValue = (header: string, value: string | number) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
 }
 
-const drawPdfHeader = (pdfDocument: InstanceType<typeof import('jspdf').jsPDF>, title: string, printedAt: string, pageWidth: number) => {
-  pdfDocument.setFillColor(247, 249, 250)
-  pdfDocument.rect(0, 0, pageWidth, 27, 'F')
-  pdfDocument.setDrawColor(23, 131, 75)
-  pdfDocument.setLineWidth(1)
-  pdfDocument.line(14, 27, pageWidth - 14, 27)
+const formatStatementDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
+}
+
+const drawPdfHeader = (pdfDocument: InstanceType<typeof import('jspdf').jsPDF>, title: string, period: string, printedAt: string, pageWidth: number) => {
+  pdfDocument.setFillColor(247, 250, 251)
+  pdfDocument.rect(0, 0, pageWidth, 43, 'F')
+  pdfDocument.setFillColor(23, 131, 75)
+  pdfDocument.roundedRect(14, 9, 7, 7, 1.5, 1.5, 'F')
+  pdfDocument.setFillColor(52, 130, 180)
+  pdfDocument.roundedRect(18, 6, 7, 7, 1.5, 1.5, 'F')
   pdfDocument.setTextColor(25, 38, 48)
   pdfDocument.setFont('helvetica', 'bold')
-  pdfDocument.setFontSize(16)
-  pdfDocument.text(title, 14, 12)
+  pdfDocument.setFontSize(15)
+  pdfDocument.text('SULTAN SEAFOOD', 29, 12)
+  pdfDocument.setFont('helvetica', 'normal')
+  pdfDocument.setFontSize(7)
+  pdfDocument.setTextColor(101, 112, 120)
+  pdfDocument.text('SEAFOOD TRADING & FINANCIAL REPORT', 29, 17)
+  pdfDocument.setFont('helvetica', 'bold')
+  pdfDocument.setFontSize(15)
+  pdfDocument.setTextColor(25, 38, 48)
+  pdfDocument.text(title, 14, 30)
   pdfDocument.setFont('helvetica', 'normal')
   pdfDocument.setFontSize(8)
   pdfDocument.setTextColor(101, 112, 120)
-  pdfDocument.text(printedAt, 14, 20)
+  pdfDocument.text(period, 14, 36)
+  pdfDocument.text('Dokumen resmi', pageWidth - 14, 30, { align: 'right' })
+  pdfDocument.text(printedAt, pageWidth - 14, 36, { align: 'right' })
+  pdfDocument.setDrawColor(23, 131, 75)
+  pdfDocument.setLineWidth(0.8)
+  pdfDocument.line(14, 43, pageWidth - 14, 43)
+}
+
+const drawPdfFooter = (pdfDocument: InstanceType<typeof import('jspdf').jsPDF>, pageNumber: number, pageWidth: number, pageHeight: number) => {
+  pdfDocument.setDrawColor(180, 190, 196)
+  pdfDocument.setLineWidth(0.25)
+  pdfDocument.line(14, pageHeight - 15, pageWidth - 14, pageHeight - 15)
+  pdfDocument.setFont('helvetica', 'normal')
+  pdfDocument.setFontSize(7.5)
+  pdfDocument.setTextColor(101, 112, 120)
+  pdfDocument.text('Sultan Seafood · Laporan keuangan', 14, pageHeight - 8)
+  pdfDocument.text(`Halaman ${pageNumber}`, pageWidth - 14, pageHeight - 8, { align: 'right' })
+}
+
+const drawSummary = (pdfDocument: InstanceType<typeof import('jspdf').jsPDF>, rows: StatementRow[], startY: number, pageWidth: number) => {
+  const income = rows.filter((row) => row.type === 'Pemasukan').reduce((total, row) => total + row.amount, 0)
+  const expense = rows.filter((row) => row.type === 'Pengeluaran').reduce((total, row) => total + row.amount, 0)
+  const cards = [
+    ['Total pemasukan', formatPdfValue('Jumlah', income), [232, 247, 238] as [number, number, number], incomeColor],
+    ['Total pengeluaran', formatPdfValue('Jumlah', expense), [253, 236, 236] as [number, number, number], expenseColor],
+    ['Saldo bersih', formatPdfValue('Jumlah', income - expense), [235, 242, 247] as [number, number, number], [52, 98, 127] as [number, number, number]],
+  ] as const
+  pdfDocument.setFillColor(58, 126, 177)
+  pdfDocument.rect(14, startY, pageWidth - 28, 8, 'F')
+  pdfDocument.setTextColor(255, 255, 255)
+  pdfDocument.setFont('helvetica', 'bold')
+  pdfDocument.setFontSize(8.5)
+  pdfDocument.text('RINGKASAN TRANSAKSI', 17, startY + 5.5)
+  const cardWidth = (pageWidth - 32) / 3
+  cards.forEach(([label, value, background, color], index) => {
+    const x = 14 + index * (cardWidth + 2)
+    pdfDocument.setFillColor(...background)
+    pdfDocument.roundedRect(x, startY + 12, cardWidth, 19, 1.5, 1.5, 'F')
+    pdfDocument.setFont('helvetica', 'normal')
+    pdfDocument.setFontSize(7)
+    pdfDocument.setTextColor(101, 112, 120)
+    pdfDocument.text(label, x + 4, startY + 18)
+    pdfDocument.setFont('helvetica', 'bold')
+    pdfDocument.setFontSize(10)
+    pdfDocument.setTextColor(...color)
+    pdfDocument.text(value, x + 4, startY + 26)
+  })
+  return startY + 39
+}
+
+const aggregateRows = (rows: StatementRow[]) => Object.values(rows.reduce<Record<string, { name: string; income: number; expense: number }>>((summary, row) => {
+  const current = summary[row.name] ?? { name: row.name, income: 0, expense: 0 }
+  if (row.type === 'Pemasukan') current.income += row.amount
+  else current.expense += row.amount
+  summary[row.name] = current
+  return summary
+}, {})).sort((a, b) => a.name.localeCompare(b.name))
+
+const detailRowsFor = (rows: StatementRow[]) => {
+  const summaryRows = aggregateRows(rows)
+  return {
+    rows: [
+      ...summaryRows.filter((row) => row.income > 0).map((row) => [row.name, formatPdfValue('Pemasukan', row.income), '', '']),
+      ...summaryRows.filter((row) => row.expense > 0).map((row) => [row.name, '', formatPdfValue('Pengeluaran', row.expense), '']),
+    ],
+    income: summaryRows.reduce((total, row) => total + row.income, 0),
+    expense: summaryRows.reduce((total, row) => total + row.expense, 0),
+  }
 }
 
 export async function exportMonthlyPdf(title: string, fileName: string, rows: MonthlyExportRow[]) {
@@ -53,60 +136,151 @@ export async function exportMonthlyPdf(title: string, fileName: string, rows: Mo
   const pageWidth = pdfDocument.internal.pageSize.getWidth()
   const pageHeight = pdfDocument.internal.pageSize.getHeight()
   const printedAt = `Dicetak ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date())}`
-  const grouped = rows.reduce<Record<string, MonthlyExportRow[]>>((dates, row) => {
+  const period = rows.length ? `Periode ${formatStatementDate(rows[rows.length - 1].date)} s.d. ${formatStatementDate(rows[0].date)}` : 'Tidak ada transaksi tercatat'
+  drawPdfHeader(pdfDocument, title, period, printedAt, pageWidth)
+  let currentY = drawSummary(pdfDocument, rows, 50, pageWidth) + 16
+  pdfDocument.setFont('helvetica', 'bold')
+  pdfDocument.setFontSize(10)
+  pdfDocument.setTextColor(25, 38, 48)
+  pdfDocument.text('DETAIL TRANSAKSI PER TANGGAL', 14, currentY + 3)
+  currentY += 12
+
+  const grouped = rows.reduce<Record<string, StatementRow[]>>((dates, row) => {
     dates[row.date] = [...(dates[row.date] ?? []), row]
     return dates
   }, {})
-  let currentY = 36
+  const dateGroups = Object.entries(grouped).sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+  const tableOptions = (tableRows: string[][], startY: number, isTotal = false) => ({
+    head: [['Nama', 'Pemasukan', 'Pengeluaran', 'Total']],
+    body: tableRows,
+    startY,
+    margin: { left: 14, right: 14, top: 48, bottom: 18 },
+    theme: 'grid' as const,
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3, textColor: [45, 45, 45] as [number, number, number], lineColor: [218, 223, 226] as [number, number, number], lineWidth: 0.2, overflow: 'linebreak' as const, valign: 'middle' as const },
+    headStyles: { fillColor: [235, 239, 242] as [number, number, number], textColor: [36, 48, 58] as [number, number, number], fontStyle: 'bold' as const, halign: 'left' as const, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [249, 250, 251] as [number, number, number] },
+    columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 38, halign: 'right' as const }, 2: { cellWidth: 38, halign: 'right' as const }, 3: { cellWidth: 38, halign: 'right' as const } },
+    didParseCell: (data: import('jspdf-autotable').CellHookData) => {
+      if (data.section !== 'body') return
+      if (isTotal) {
+        data.cell.styles.fillColor = [235, 242, 247]
+        data.cell.styles.fontStyle = 'bold'
+      }
+      if (data.column.index === 1 && data.row.index < tableRows.length - (isTotal ? 1 : 0)) {
+        data.cell.styles.textColor = incomeColor
+        data.cell.styles.fontStyle = 'bold'
+      }
+      if (data.column.index === 2 && data.row.index < tableRows.length - (isTotal ? 1 : 0)) {
+        data.cell.styles.textColor = expenseColor
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
+  })
+
+  for (const [date, dateRows] of dateGroups) {
+    if (currentY > pageHeight - 55) {
+      pdfDocument.addPage()
+      drawPdfHeader(pdfDocument, title, period, printedAt, pageWidth)
+      currentY = 51
+    }
+    pdfDocument.setFillColor(58, 126, 177)
+    pdfDocument.rect(14, currentY, pageWidth - 28, 7, 'F')
+    pdfDocument.setTextColor(255, 255, 255)
+    pdfDocument.setFont('helvetica', 'bold')
+    pdfDocument.setFontSize(8.5)
+    pdfDocument.text(formatStatementDate(date), 17, currentY + 5)
+    currentY += 9
+    const dateDetails = detailRowsFor(dateRows)
+    if (!dateDetails.rows.length) continue
+    autoTable(pdfDocument, tableOptions(dateDetails.rows, currentY))
+    currentY = (pdfDocument as typeof pdfDocument & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+  }
+
+  const totals = detailRowsFor(rows)
+  if (currentY > pageHeight - 48) {
+    pdfDocument.addPage()
+    drawPdfHeader(pdfDocument, title, period, printedAt, pageWidth)
+    currentY = 51
+  }
+  autoTable(pdfDocument, tableOptions([['TOTAL', formatPdfValue('Pemasukan', totals.income), formatPdfValue('Pengeluaran', totals.expense), formatPdfValue('Jumlah', totals.income - totals.expense)]], currentY, true))
+  for (let page = 1; page <= pdfDocument.getNumberOfPages(); page += 1) {
+    pdfDocument.setPage(page)
+    drawPdfHeader(pdfDocument, title, period, printedAt, pageWidth)
+    drawPdfFooter(pdfDocument, page, pageWidth, pageHeight)
+  }
+  pdfDocument.save(`${fileName}.pdf`)
+}
+
+export async function exportStatementPdf(title: string, fileName: string, rows: StatementRow[]) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ])
+  const pdfDocument = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdfDocument.internal.pageSize.getWidth()
+  const printedAt = `Dicetak ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date())}`
+  const pageHeight = pdfDocument.internal.pageSize.getHeight()
+  const period = rows.length ? `Periode ${formatStatementDate(rows[rows.length - 1].date)} s.d. ${formatStatementDate(rows[0].date)}` : 'Tidak ada transaksi tercatat'
+  drawPdfHeader(pdfDocument, title, period, printedAt, pageWidth)
+  let currentY = drawSummary(pdfDocument, rows, 50, pageWidth) + 16
+  pdfDocument.setFont('helvetica', 'bold')
+  pdfDocument.setFontSize(10)
+  pdfDocument.setTextColor(25, 38, 48)
+  pdfDocument.text('DETAIL TRANSAKSI', 14, currentY + 3)
+  currentY += 9
+
+  const summaryRows = Object.values(rows.reduce<Record<string, { name: string; income: number; expense: number }>>((summary, row) => {
+    const current = summary[row.name] ?? { name: row.name, income: 0, expense: 0 }
+    if (row.type === 'Pemasukan') current.income += row.amount
+    else current.expense += row.amount
+    summary[row.name] = current
+    return summary
+  }, {})).sort((a, b) => a.name.localeCompare(b.name))
+  const incomeRows = summaryRows
+    .filter((row) => row.income > 0)
+    .map((row) => [row.name, formatPdfValue('Pemasukan', row.income), '', ''])
+  const expenseRows = summaryRows
+    .filter((row) => row.expense > 0)
+    .map((row) => [row.name, '', formatPdfValue('Pengeluaran', row.expense), ''])
+  const detailRows = [...incomeRows, ...expenseRows]
+  const totalIncome = summaryRows.reduce((total, row) => total + row.income, 0)
+  const totalExpense = summaryRows.reduce((total, row) => total + row.expense, 0)
+  const totalNet = totalIncome - totalExpense
 
   if (!rows.length) {
-    autoTable(pdfDocument, { head: [['Keterangan']], body: [['Tidak ada data']], startY: currentY, margin: { left: 14, right: 14, top: 36, bottom: 18 }, headStyles: { fillColor: [235, 239, 242], textColor: [36, 48, 58] }, didDrawPage: (data) => { drawPdfHeader(pdfDocument, title, printedAt, pageWidth); pdfDocument.setTextColor(101, 112, 120); pdfDocument.setFontSize(8); pdfDocument.text(`Sultan · Halaman ${data.pageNumber}`, pageWidth - 14, pageHeight - 8, { align: 'right' }) } })
+    autoTable(pdfDocument, { head: [['Nama', 'Pemasukan', 'Pengeluaran', 'Total']], body: [['Tidak ada data', '-', '-', '-']], startY: currentY, margin: { left: 14, right: 14, top: 48, bottom: 18 }, headStyles: { fillColor: [235, 239, 242], textColor: [36, 48, 58] } })
   } else {
-    for (const [date, dateRows] of Object.entries(grouped).sort(([dateA], [dateB]) => dateB.localeCompare(dateA))) {
-      if (currentY > pageHeight - 42) {
-        pdfDocument.addPage()
-        currentY = 36
-      }
-      pdfDocument.setFont('helvetica', 'bold')
-      pdfDocument.setFontSize(12)
-      pdfDocument.setTextColor(25, 38, 48)
-      pdfDocument.text(date, 14, currentY)
-      currentY += 7
-
-      for (const type of ['Pemasukan', 'Pengeluaran'] as const) {
-        const typeRows = dateRows.filter((row) => row.type === type)
-        if (!typeRows.length) continue
-        const isIncome = type === 'Pemasukan'
-        autoTable(pdfDocument, {
-          head: [[type, '', '', '', ''], ['Waktu', 'Nama', 'Kategori', 'Catatan', 'Jumlah']],
-          body: typeRows.map((row) => [row.time, row.name, row.category, row.note, formatPdfValue('Jumlah', row.amount)]),
-          startY: currentY,
-          margin: { left: 14, right: 14, top: 36, bottom: 18 },
-          theme: 'grid',
-          styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.5, textColor: [45, 45, 45], lineColor: [218, 223, 226], lineWidth: 0.2, overflow: 'linebreak', valign: 'middle' },
-          headStyles: { fillColor: [245, 247, 248], textColor: [36, 48, 58], fontStyle: 'bold', halign: 'left', cellPadding: 3 },
-          columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 34 }, 2: { cellWidth: 30 }, 3: { cellWidth: 66 }, 4: { cellWidth: 34, halign: 'right' } },
-          didParseCell: (data) => {
-            if (data.section === 'head' && data.row.index === 0) {
-              data.cell.styles.fillColor = isIncome ? [232, 247, 238] : [253, 236, 236]
-              data.cell.styles.textColor = isIncome ? incomeColor : expenseColor
-            }
-            if (data.section === 'body' && data.column.index === 4) {
-              data.cell.styles.textColor = isIncome ? incomeColor : expenseColor
-              data.cell.styles.fontStyle = 'bold'
-            }
-          },
-          didDrawPage: (data) => {
-            drawPdfHeader(pdfDocument, title, printedAt, pageWidth)
-            pdfDocument.setTextColor(101, 112, 120)
-            pdfDocument.setFont('helvetica', 'normal')
-            pdfDocument.setFontSize(8)
-            pdfDocument.text(`Sultan · Halaman ${data.pageNumber}`, pageWidth - 14, pageHeight - 8, { align: 'right' })
-          },
-        })
-        currentY = (pdfDocument as typeof pdfDocument & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
-      }
-    }
+    autoTable(pdfDocument, {
+      head: [['Nama', 'Pemasukan', 'Pengeluaran', 'Total']],
+      body: [...detailRows, ['TOTAL', formatPdfValue('Pemasukan', totalIncome), formatPdfValue('Pengeluaran', totalExpense), formatPdfValue('Jumlah', totalNet)]],
+      startY: currentY,
+      margin: { left: 14, right: 14, top: 48, bottom: 18 },
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 3.2, textColor: [45, 45, 45], lineColor: [218, 223, 226], lineWidth: 0.2, overflow: 'linebreak', valign: 'middle' },
+      headStyles: { fillColor: [235, 239, 242], textColor: [36, 48, 58], fontStyle: 'bold', halign: 'left', cellPadding: 3.5 },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 38, halign: 'right' }, 2: { cellWidth: 38, halign: 'right' }, 3: { cellWidth: 38, halign: 'right' } },
+      didParseCell: (data) => {
+        if (data.section !== 'body') return
+        if (data.row.index === detailRows.length) {
+          data.cell.styles.fillColor = [235, 242, 247]
+          data.cell.styles.fontStyle = 'bold'
+        }
+        if (data.column.index === 1) {
+          data.cell.styles.textColor = incomeColor
+          data.cell.styles.fontStyle = 'bold'
+        }
+        if (data.column.index === 2) {
+          data.cell.styles.textColor = expenseColor
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
+  }
+  for (let page = 1; page <= pdfDocument.getNumberOfPages(); page += 1) {
+    pdfDocument.setPage(page)
+    drawPdfHeader(pdfDocument, title, period, printedAt, pageWidth)
+    drawPdfFooter(pdfDocument, page, pageWidth, pageHeight)
   }
   pdfDocument.save(`${fileName}.pdf`)
 }
@@ -159,6 +333,7 @@ export async function exportReport(
   const pageWidth = pdfDocument.internal.pageSize.getWidth()
   const pageHeight = pdfDocument.internal.pageSize.getHeight()
   const printedAt = `Dicetak ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date())}`
+  const annualPeriod = headers.includes('Bulan') ? `Ringkasan tahunan ${title.replace('Laporan tahunan ', '')}` : 'Laporan keuangan'
   const body = rows.length
     ? rows.map((row) => headers.map((header) => formatPdfValue(header, row[header] ?? '')))
     : [['Tidak ada data']]
@@ -192,23 +367,8 @@ export async function exportReport(
       }
     },
     didDrawPage: (data) => {
-      pdfDocument.setFillColor(247, 249, 250)
-      pdfDocument.rect(0, 0, pageWidth, 27, 'F')
-      pdfDocument.setDrawColor(23, 131, 75)
-      pdfDocument.setLineWidth(1)
-      pdfDocument.line(14, 27, pageWidth - 14, 27)
-      pdfDocument.setTextColor(25, 38, 48)
-      pdfDocument.setFont('helvetica', 'bold')
-      pdfDocument.setFontSize(16)
-      pdfDocument.text(title, 14, 12)
-      pdfDocument.setFont('helvetica', 'normal')
-      pdfDocument.setFontSize(8)
-      pdfDocument.setTextColor(101, 112, 120)
-      pdfDocument.text(printedAt, 14, 20)
-      pdfDocument.setFont('helvetica', 'normal')
-      pdfDocument.setFontSize(8)
-      pdfDocument.setTextColor(101, 112, 120)
-      pdfDocument.text(`Sultan · Halaman ${data.pageNumber}`, pageWidth - 14, pageHeight - 8, { align: 'right' })
+      drawPdfHeader(pdfDocument, title, annualPeriod, printedAt, pageWidth)
+      drawPdfFooter(pdfDocument, data.pageNumber, pageWidth, pageHeight)
     },
   })
   pdfDocument.save(`${fileName}.pdf`)
