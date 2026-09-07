@@ -117,8 +117,7 @@ as $$
   join public.traders t on t.id = c.trader_id
   where c.transaction_date between start_date and end_date
   group by t.id, t.name
-  order by commission_total desc, t.name asc
-  limit 3;
+  order by commission_total desc, t.name asc;
 $$;
 
 grant execute on function public.top_commission_trader(date, date) to anon, authenticated;
