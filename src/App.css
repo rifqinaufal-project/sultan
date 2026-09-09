@@ -50,3 +50,19 @@
 .expense-ranking-card{background:#fff4f4}.expense-ranking-card .top-trader-rank{border-color:#f0caca}.expense-ranking-card .top-trader-row b{color:#c43d3d}.expense-ranking-card .top-trader-toggle{border-color:#f0caca}.expense-ranking-card .top-trader-empty{color:#c43d3d}
 
 @media(max-width:640px){.profile-trigger{background:#f1f1f1!important;color:#151515!important}.modal .transaction-date input[type=date]{width:160px;max-width:100%;min-width:0}}
+
+/* Dashboard surfaces */
+.app-shell{background:#f1f1f1}
+.metrics{gap:12px}
+.metric{background:#fff}
+.net-metric{background:#090909;color:#fff}
+.net-metric span,.net-metric small{color:#d5d5d5}
+.net-metric .progress{background:#3a3a3a}
+.net-metric .progress i{background:#fff}
+.top-trader-card{background:#fff}
+.expense-ranking-card{background:#fff4f4}
+
+/* Report surfaces */
+.reports .report-tabs,.reports .monthly-export,.reports .daily-card,.reports .annual-report{background:#fff}
+
+@media(max-width:640px){.metrics{gap:12px 8px}.metric{background:#fff}.net-metric{background:#090909}}

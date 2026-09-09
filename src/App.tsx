@@ -680,6 +680,26 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
               )}
             </section>
             <section className="metrics" aria-label="Ringkasan keuangan">
+              <article className="metric net-metric">
+                <span>Keuntungan bersih</span>
+                <strong>{compactRupiah(netTotal)}</strong>
+                <div className="progress-meta">
+                  <small>
+                    {commissionTotal
+                      ? Math.round((netTotal / commissionTotal) * 100)
+                      : 0}
+                    %
+                  </small>
+                  <small>margin</small>
+                </div>
+                <div className="progress">
+                  <i
+                    style={{
+                      width: `${commissionTotal ? Math.max(0, Math.min(100, (netTotal / commissionTotal) * 100)) : 0}%`,
+                    }}
+                  />
+                </div>
+              </article>
               <article className="metric featured">
                 <span>Total pemasukan</span>
                 <strong>{compactRupiah(commissionTotal)}</strong>
@@ -700,26 +720,6 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 </div>
                 <div className="progress">
                   <i style={{ width: `${expenseTotal ? "100%" : "0%"}` }} />
-                </div>
-              </article>
-              <article className="metric">
-                <span>Keuntungan bersih</span>
-                <strong>{compactRupiah(netTotal)}</strong>
-                <div className="progress-meta">
-                  <small>
-                    {commissionTotal
-                      ? Math.round((netTotal / commissionTotal) * 100)
-                      : 0}
-                    %
-                  </small>
-                  <small>margin</small>
-                </div>
-                <div className="progress">
-                  <i
-                    style={{
-                      width: `${commissionTotal ? Math.max(0, Math.min(100, (netTotal / commissionTotal) * 100)) : 0}%`,
-                    }}
-                  />
                 </div>
               </article>
               <article className="metric">
