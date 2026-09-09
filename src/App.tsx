@@ -169,7 +169,60 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     setError('Username atau password salah.')
   }
 
-  return <main className="auth-shell"><section className="auth-card" aria-labelledby="login-title"><div className="auth-brand"><span className="brand-mark">S</span><strong>Sultan</strong></div><p className="auth-eyebrow">Akses administrator</p><h1 id="login-title">Masuk ke dashboard</h1><p className="auth-description">Gunakan akun admin untuk mengelola catatan keuangan.</p><form className="auth-form" onSubmit={submit}><label htmlFor="admin-username">Username<input id="admin-username" type="text" value={username} onChange={(event) => { setUsername(event.target.value); setError('') }} autoComplete="username" autoFocus required /></label><label htmlFor="admin-password">Password<input id="admin-password" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} autoComplete="current-password" required /></label>{error && <p className="auth-error" role="alert">{error}</p>}<button className="auth-submit" type="submit">Masuk</button></form></section></main>
+  return (
+    <main className="auth-shell">
+      <section className="auth-card" aria-labelledby="login-title">
+        <div className="auth-brand">
+          <span className="brand-mark">S</span>
+          <strong>Lapak Hj TIK MT</strong>
+        </div>
+        <p className="auth-eyebrow">Akses administrator</p>
+        <h1 id="login-title">Masuk ke dashboard</h1>
+        <p className="auth-description">
+          Gunakan akun admin untuk mengelola catatan keuangan.
+        </p>
+        <form className="auth-form" onSubmit={submit}>
+          <label htmlFor="admin-username">
+            Username
+            <input
+              id="admin-username"
+              type="text"
+              value={username}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                setError("");
+              }}
+              autoComplete="username"
+              autoFocus
+              required
+            />
+          </label>
+          <label htmlFor="admin-password">
+            Password
+            <input
+              id="admin-password"
+              type="password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setError("");
+              }}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error && (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          )}
+          <button className="auth-submit" type="submit">
+            Masuk
+          </button>
+        </form>
+      </section>
+    </main>
+  );
 }
 
 function DashboardApp({ onLogout }: { onLogout: () => void }) {
@@ -508,7 +561,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
         <div className="header-inner">
           <button className="brand" onClick={() => navigate("Dashboard")}>
             <span className="brand-mark">S</span>
-            <strong>Sultan</strong>
+            <strong>Lapak Hj TIK MT</strong>
           </button>
           <nav aria-label="Navigasi utama">
             <button
@@ -860,8 +913,16 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                             {displayDate(item.date)} · {item.time}
                           </small>
                         </div>
-                        <span className="transaction-type">{item.type === "Komisi" ? "Pemasukan" : item.type}</span>
-                        <b className={item.type === "Komisi" ? "transaction-amount income-amount" : "transaction-amount expense-amount"}>
+                        <span className="transaction-type">
+                          {item.type === "Komisi" ? "Pemasukan" : item.type}
+                        </span>
+                        <b
+                          className={
+                            item.type === "Komisi"
+                              ? "transaction-amount income-amount"
+                              : "transaction-amount expense-amount"
+                          }
+                        >
                           {item.type === "Komisi" ? "+" : "-"}
                           {rupiah(item.amount)}
                         </b>
@@ -1162,7 +1223,9 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
               onClick={addBatchEntry}
             >
               <Plus size={18} weight="bold" />{" "}
-              {formType === "Komisi" ? "Tambah pemasukan" : "Tambah pengeluaran"}
+              {formType === "Komisi"
+                ? "Tambah pemasukan"
+                : "Tambah pengeluaran"}
             </button>
             <label className="notes-toggle">
               <input
@@ -1188,7 +1251,8 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
               </p>
             )}
             <button className="primary save-button" type="submit">
-              Simpan {batchEntries.length} {formType === "Komisi" ? "pemasukan" : "pengeluaran"}
+              Simpan {batchEntries.length}{" "}
+              {formType === "Komisi" ? "pemasukan" : "pengeluaran"}
             </button>
           </form>
         </div>
