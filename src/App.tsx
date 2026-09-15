@@ -785,10 +785,10 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
             </section>
             <section
               className="top-trader-card"
-              aria-label="Semua supplier berdasarkan pemasukan"
+              aria-label="Semua supplier berdasarkan komisi"
             >
               <div className="top-trader-heading">
-                <span>Supplier dengan pemasukan terbanyak</span>
+                <span>Supplier dengan komisi terbanyak</span>
                 <small>Semua supplier · periode yang dipilih</small>
               </div>
               {topTraders.length ? (
@@ -830,11 +830,11 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
             </section>
             <section
               className="top-trader-card expense-ranking-card"
-              aria-label="Semua nama pengeluaran berdasarkan total pengeluaran"
+              aria-label="Semua kategory pengeluaran berdasarkan total pengeluaran"
             >
               <div className="top-trader-heading">
-                <span>Pengeluaran terbesar berdasarkan nama</span>
-                <small>Semua nama pengeluaran · periode yang dipilih</small>
+                <span>Pengeluaran terbesar berdasarkan ketegory</span>
+                <small>Semua kategory pengeluaran · periode yang dipilih</small>
               </div>
               {topExpenses.length ? (
                 <div className="top-trader-list">
