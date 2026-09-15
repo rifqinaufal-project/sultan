@@ -125,11 +125,44 @@ export async function deleteTransaction(transaction: RemoteTransaction) {
   return { error: result.error }
 }
 
-export async function loadTransactions(limit = 100) {
+export async function loadTransactions(limit?: number) {
+  if (!supabase) return { data: null, error: null }
+  const commissionQuery = supabase.from('commissions').select('id, transaction_date, amount, notes, created_at, traders(name)').order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
+  const expenseQuery = supabase.from('expenses').select('id, name, transaction_date, amount, notes, created_at').order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
+  const [commissionResult, expenseResult] = await Promise.all([
+    limit === undefined ? commissionQuery : commissionQuery.limit(limit),
+    limit === undefined ? expenseQuery : expenseQuery.limit(limit),
+  ])
+  if (commissionResult.error) return { data: null, error: commissionResult.error }
+  if (expenseResult.error) return { data: null, error: expenseResult.error }
+  const commissions: RemoteTransaction[] = (commissionResult.data ?? []).map((item) => ({
+    id: item.id,
+    type: 'Komisi',
+    name: (item.traders as unknown as { name: string } | null)?.name ?? 'Tanpa nama',
+    category: 'Pemasukan ikan',
+    date: item.transaction_date,
+    time: new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    amount: Number(item.amount),
+    note: item.notes ?? '-',
+  }))
+  const expenses: RemoteTransaction[] = (expenseResult.data ?? []).map((item) => ({
+    id: item.id,
+    type: 'Pengeluaran',
+    name: item.name,
+    category: 'Pengeluaran',
+    date: item.transaction_date,
+    time: new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    amount: Number(item.amount),
+    note: item.notes ?? '-',
+  }))
+  return { data: [...commissions, ...expenses].sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`)), error: null }
+}
+
+export async function loadTransactionsForPeriod(startDate: string, endDate: string) {
   if (!supabase) return { data: null, error: null }
   const [commissionResult, expenseResult] = await Promise.all([
-    supabase.from('commissions').select('id, transaction_date, amount, notes, created_at, traders(name)').order('transaction_date', { ascending: false }).order('created_at', { ascending: false }).limit(limit),
-    supabase.from('expenses').select('id, name, transaction_date, amount, notes, created_at').order('transaction_date', { ascending: false }).order('created_at', { ascending: false }).limit(limit),
+    supabase.from('commissions').select('id, transaction_date, amount, notes, created_at, traders(name)').gte('transaction_date', startDate).lte('transaction_date', endDate).order('transaction_date', { ascending: false }).order('created_at', { ascending: false }),
+    supabase.from('expenses').select('id, name, transaction_date, amount, notes, created_at').gte('transaction_date', startDate).lte('transaction_date', endDate).order('transaction_date', { ascending: false }).order('created_at', { ascending: false }),
   ])
   if (commissionResult.error) return { data: null, error: commissionResult.error }
   if (expenseResult.error) return { data: null, error: expenseResult.error }

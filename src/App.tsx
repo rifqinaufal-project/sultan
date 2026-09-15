@@ -14,8 +14,8 @@ import {
   Trash,
   X,
 } from '@phosphor-icons/react'
-import { exportMonthlyPdf, exportReport, exportStatementPdf, type ExportFormat } from './lib/exportReport'
-import { createExpenseName, deleteExpenseName, deleteTransaction, isRemoteDataAvailable, loadDailyReports, loadExpenseNames, loadTransactions, loadTopTrader, loadTraders, loadYearlyReports, saveBatch, updateExpenseName, updateTransaction, type DailyReportRow, type RemoteExpenseName } from './lib/financeRepository'
+import { exportMonthlyExcel, exportMonthlyPdf, exportReport, exportStatementExcel, exportStatementPdf, type ExportFormat } from './lib/exportReport'
+import { createExpenseName, deleteExpenseName, deleteTransaction, isRemoteDataAvailable, loadDailyReports, loadExpenseNames, loadTransactions, loadTransactionsForPeriod, loadTopTrader, loadTraders, loadYearlyReports, saveBatch, updateExpenseName, updateTransaction, type DailyReportRow, type RemoteExpenseName } from './lib/financeRepository'
 import './App.css'
 
 type Page = 'Dashboard' | 'Laporan'
@@ -50,6 +50,7 @@ const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 
 const REPORT_DAYS_PER_PAGE = 5
 const TOP_TRADER_PREVIEW_COUNT = 5
 const AUTH_STORAGE_KEY = 'sultan-admin-authenticated'
+const LOCAL_TRANSACTIONS_KEY = 'sultan-local-transactions'
 const ADMIN_USERNAME = 'admin'
 const ADMIN_PASSWORD = 'admin'
 const NEW_EXPENSE = '__new_expense__'
@@ -65,9 +66,9 @@ const loadTraderNames = () => {
   }
 }
 
-const createBatchEntry = (type: TransactionType): BatchEntry => ({
+const createBatchEntry = (type: TransactionType, expenseOptions = initialExpenseNames): BatchEntry => ({
   id: crypto.randomUUID(),
-  name: type === 'Pengeluaran' ? initialExpenseNames[0] : '',
+  name: type === 'Pengeluaran' ? (expenseOptions[0] ?? NEW_EXPENSE) : '',
   customName: '',
   amount: '',
 })
@@ -76,7 +77,9 @@ const rupiah = (value: number) => new Intl.NumberFormat('id-ID', {
   style: 'currency', currency: 'IDR', maximumFractionDigits: 0,
 }).format(value)
 
-const compactRupiah = (value: number) => `Rp ${(value / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} jt`
+const compactRupiah = (value: number) => Math.abs(value) < 1000000
+  ? rupiah(value)
+  : `Rp ${(value / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} jt`
 
 const displayDate = (value: string) => new Intl.DateTimeFormat('id-ID', {
   day: '2-digit', month: 'short', year: 'numeric',
@@ -118,24 +121,23 @@ const buildChartBuckets = (items: Transaction[], start: string, end: string) => 
     }
   })
   const max = Math.max(1, ...values.flatMap((bucket) => [bucket.commission, bucket.expense]))
-  return values.map((bucket) => ({ ...bucket, commissionPercent: bucket.commission / max * 100, expensePercent: bucket.expense / max * 100 }))
+  return { max, values: values.map((bucket) => ({ ...bucket, commissionPercent: bucket.commission / max * 100, expensePercent: bucket.expense / max * 100 })) }
 }
-
-const reportRows = (items: Transaction[]) => items.map((item) => ({
-  Tanggal: displayDate(item.date),
-  Waktu: item.time,
-  Jenis: item.type === 'Komisi' ? 'Pemasukan' : item.type,
-  Nama: item.name,
-  Kategori: item.category.replace('Komisi', 'Pemasukan'),
-  Catatan: item.note,
-  Jumlah: item.amount,
-}))
 
 const readAdminSession = () => {
   try {
     return window.localStorage.getItem(AUTH_STORAGE_KEY) === 'true'
   } catch {
     return false
+  }
+}
+
+const loadLocalTransactions = () => {
+  try {
+    const saved = window.localStorage.getItem(LOCAL_TRANSACTIONS_KEY)
+    return saved ? JSON.parse(saved) as Transaction[] : initialTransactions
+  } catch {
+    return initialTransactions
   }
 }
 
@@ -173,7 +175,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     <main className="auth-shell">
       <section className="auth-card" aria-labelledby="login-title">
         <div className="auth-brand">
-          <span className="brand-mark">S</span>
+          <img className="brand-mark" src="/logo.png" alt="" />
           <strong>Lapak Hj TIK MT</strong>
         </div>
         <p className="auth-eyebrow">Akses administrator</p>
@@ -227,7 +229,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 
 function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const [page, setPage] = useState<Page>(() => new URLSearchParams(window.location.search).get('page') === 'reports' ? 'Laporan' : 'Dashboard')
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
+  const [transactions, setTransactions] = useState<Transaction[]>(() => isRemoteDataAvailable ? initialTransactions : loadLocalTransactions())
   const [showModal, setShowModal] = useState(false)
   const [formType, setFormType] = useState<TransactionType>('Komisi')
   const [range, setRange] = useState<DashboardRange>('7 hari')
@@ -248,6 +250,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const [remoteReportPage, setRemoteReportPage] = useState(1)
   const [remoteLoading, setRemoteLoading] = useState(false)
   const [remoteYearlyRows, setRemoteYearlyRows] = useState<{ month: string; commission: number; expense: number; net: number }[] | null>(null)
+  const [remoteYearlyLoading, setRemoteYearlyLoading] = useState(false)
   const [remoteTopTraders, setRemoteTopTraders] = useState<{ name: string; amount: number }[]>([])
   const [expandedTopTraderRange, setExpandedTopTraderRange] = useState<string | null>(null)
   const [refreshVersion, setRefreshVersion] = useState(0)
@@ -261,6 +264,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   ])
   const [expenseName, setExpenseName] = useState('')
   const [editingExpenseNameId, setEditingExpenseNameId] = useState<string | null>(null)
+  const [savingTransaction, setSavingTransaction] = useState(false)
 
   const navigate = (nextPage: Page) => {
     const pageParam = nextPage === 'Laporan' ? '?page=reports' : '?page=dashboard'
@@ -293,19 +297,21 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
     return { month, commission, expense, net: commission - expense }
   })
   const reportYears = Array.from(new Set([String(new Date().getFullYear()), ...transactions.map((item) => item.date.slice(0, 4))])).sort().reverse()
+  const chartData = buildChartBuckets(filteredTransactions, rangeStart, rangeEnd)
 
   useEffect(() => {
     if (!isRemoteDataAvailable) return
     let cancelled = false
     startTransition(() => setRemoteLoading(true))
-    Promise.all([loadTransactions(100), loadTraders(), loadDailyReports(remoteReportPage, REPORT_DAYS_PER_PAGE)])
-      .then(([transactionResult, traderResult, dailyResult]) => {
+    Promise.all([loadTransactions(), loadTransactionsForPeriod(rangeStart, rangeEnd), loadTraders(), loadDailyReports(remoteReportPage, REPORT_DAYS_PER_PAGE)])
+      .then(([transactionResult, periodTransactionResult, traderResult, dailyResult]) => {
         if (cancelled) return
-        if (transactionResult.error || traderResult.error || dailyResult.error) {
-          setNotice('Supabase belum siap. Jalankan supabase/schema.sql lalu coba lagi.')
+        if (transactionResult.error || periodTransactionResult.error || traderResult.error || dailyResult.error) {
+          setNotice('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
           return
         }
-        if (transactionResult.data) setTransactions(transactionResult.data)
+        if (page === 'Dashboard' && periodTransactionResult.data) setTransactions(periodTransactionResult.data)
+        else if (transactionResult.data) setTransactions(transactionResult.data)
         if (traderResult.data) {
           const names = traderResult.data.map((trader) => trader.name)
           setTraderNames(names)
@@ -317,13 +323,13 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
         }
       })
       .catch(() => {
-        if (!cancelled) setNotice('Tidak dapat memuat data Supabase. Data demo tetap ditampilkan.')
+        if (!cancelled) setNotice('Tidak dapat memuat data. Periksa koneksi lalu coba lagi.')
       })
       .finally(() => {
         if (!cancelled) setRemoteLoading(false)
       })
     return () => { cancelled = true }
-  }, [remoteReportPage, refreshVersion])
+  }, [page, rangeStart, rangeEnd, remoteReportPage, refreshVersion])
 
   useEffect(() => {
     if (!isRemoteDataAvailable) return
@@ -337,7 +343,11 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     if (!isRemoteDataAvailable) return
+    let cancelled = false
+    startTransition(() => setRemoteYearlyRows(null))
+    startTransition(() => setRemoteYearlyLoading(true))
     loadYearlyReports(Number(reportYear)).then((result) => {
+      if (cancelled) return
       if (result.data) {
         setRemoteYearlyRows(result.data.map((row) => ({
           month: MONTHS[row.report_month - 1],
@@ -346,8 +356,11 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
           net: Number(row.commission_total) - Number(row.expense_total),
         })))
       }
+    }).finally(() => {
+      if (!cancelled) setRemoteYearlyLoading(false)
     })
-  }, [reportYear])
+    return () => { cancelled = true }
+  }, [reportYear, refreshVersion])
 
   useEffect(() => {
     if (!isRemoteDataAvailable) return
@@ -360,11 +373,14 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     if (!showModal) return
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowModal(false)
+      if (event.key === 'Escape') {
+        const hasDraft = batchEntries.some((entry) => entry.amount || entry.customName) || showNotes
+        if (!hasDraft || window.confirm('Data yang sudah diisi akan dihapus. Tutup form?')) setShowModal(false)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showModal])
+  }, [batchEntries, showModal, showNotes])
 
   useEffect(() => {
     const handlePopState = () => setPage(new URLSearchParams(window.location.search).get('page') === 'reports' ? 'Laporan' : 'Dashboard')
@@ -374,15 +390,18 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
 
   const openModal = (type: TransactionType = 'Komisi') => {
     setFormType(type)
-    setBatchEntries([createBatchEntry(type)])
+    setBatchEntries([createBatchEntry(type, expenseNames)])
     setShowNotes(false)
     setFormError('')
     setShowModal(true)
   }
 
   const changeFormType = (type: TransactionType) => {
+    if (type === formType) return
+    const hasDraft = batchEntries.some((entry) => entry.amount || entry.customName) || showNotes
+    if (hasDraft && !window.confirm('Data yang sudah diisi akan dihapus. Lanjutkan?')) return
     setFormType(type)
-    setBatchEntries([createBatchEntry(type)])
+    setBatchEntries([createBatchEntry(type, expenseNames)])
     setShowNotes(false)
     setFormError('')
   }
@@ -409,8 +428,15 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
     setBatchEntries((entries) => entries.filter((entry) => entry.id !== id))
   }
 
+  const closeTransactionModal = () => {
+    const hasDraft = batchEntries.some((entry) => entry.amount || entry.customName) || showNotes
+    if (hasDraft && !window.confirm('Data yang sudah diisi akan dihapus. Tutup form?')) return
+    setShowModal(false)
+  }
+
   const saveTransaction = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (savingTransaction) return
     const form = event.currentTarget
     const data = new FormData(form)
     const date = String(data.get('date'))
@@ -452,40 +478,50 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
       window.localStorage.setItem('sultan-trader-names', JSON.stringify(savedNames))
     }
 
-    const remoteResult = await saveBatch({
-      date,
-      note,
-      commissions: formType === 'Komisi' ? validEntries.map((entry) => ({ name: entry.resolvedName, amount: entry.numericAmount })) : [],
-      expenses: formType === 'Pengeluaran' ? validEntries.map((entry) => ({ name: entry.resolvedName, amount: entry.numericAmount })) : [],
-    })
-    if (remoteResult.error) {
-      setFormError('Data belum tersimpan ke Supabase. Pastikan schema.sql sudah dijalankan.')
-      return
-    }
+    setSavingTransaction(true)
+    try {
+      const remoteResult = await saveBatch({
+        date,
+        note,
+        commissions: formType === 'Komisi' ? validEntries.map((entry) => ({ name: entry.resolvedName, amount: entry.numericAmount })) : [],
+        expenses: formType === 'Pengeluaran' ? validEntries.map((entry) => ({ name: entry.resolvedName, amount: entry.numericAmount })) : [],
+      })
+      if (remoteResult.error) {
+        setFormError('Data belum tersimpan. Periksa koneksi lalu coba lagi.')
+        return
+      }
 
-    const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-    const createdTransactions = validEntries.map((entry, index) => ({
-      id: Date.now() + index,
-      type: formType,
-      name: entry.resolvedName,
-      category: formType === 'Komisi' ? 'Pemasukan ikan' : 'Pengeluaran',
-      date,
-      time,
-      amount: entry.numericAmount,
-      note,
-    }))
-    setTransactions((current) => [...createdTransactions, ...current])
-    form.reset()
-    setBatchEntries([createBatchEntry(formType)])
-    setShowNotes(false)
-    setShowModal(false)
-    setNotice(`${createdTransactions.length} ${formType.toLowerCase()} berhasil disimpan.`)
-    if (isRemoteDataAvailable) {
-      const latest = await loadTransactions(100)
-      if (latest.data) setTransactions(latest.data)
-      setRemoteReportPage(1)
+      const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      const createdTransactions = validEntries.map((entry, index) => ({
+        id: Date.now() + index,
+        type: formType,
+        name: entry.resolvedName,
+        category: formType === 'Komisi' ? 'Pemasukan ikan' : 'Pengeluaran',
+        date,
+        time,
+        amount: entry.numericAmount,
+        note,
+      }))
+      setTransactions((current) => {
+        const updated = [...createdTransactions, ...current]
+        if (!isRemoteDataAvailable) window.localStorage.setItem(LOCAL_TRANSACTIONS_KEY, JSON.stringify(updated))
+        return updated
+      })
+      form.reset()
+      setBatchEntries([createBatchEntry(formType, expenseNames)])
+      setShowNotes(false)
+      setShowModal(false)
+      setNotice(`${createdTransactions.length} ${formType === 'Komisi' ? 'pemasukan' : 'pengeluaran'} berhasil disimpan.`)
+      if (isRemoteDataAvailable) {
+        const latest = await loadTransactions()
+        if (latest.data) setTransactions(latest.data)
+        setRemoteReportPage(1)
+      }
+      reloadAfterMutation()
+      window.setTimeout(() => setNotice(''), 3000)
+    } finally {
+      setSavingTransaction(false)
     }
-    window.setTimeout(() => setNotice(''), 3000)
   }
 
   const reloadAfterMutation = () => setRefreshVersion((version) => version + 1)
@@ -496,7 +532,11 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
       setNotice('Transaksi gagal diperbarui.')
       return
     }
-    setTransactions((current) => current.map((item) => item.id === transaction.id ? transaction : item))
+    setTransactions((current) => {
+      const updated = current.map((item) => item.id === transaction.id ? transaction : item)
+      if (!isRemoteDataAvailable) window.localStorage.setItem(LOCAL_TRANSACTIONS_KEY, JSON.stringify(updated))
+      return updated
+    })
     setEditingTransaction(null)
     setNotice('Transaksi berhasil diperbarui.')
     reloadAfterMutation()
@@ -509,8 +549,13 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
       setNotice('Transaksi gagal dihapus.')
       return
     }
-    setTransactions((current) => current.filter((item) => item.id !== transaction.id))
+    setTransactions((current) => {
+      const updated = current.filter((item) => item.id !== transaction.id)
+      if (!isRemoteDataAvailable) window.localStorage.setItem(LOCAL_TRANSACTIONS_KEY, JSON.stringify(updated))
+      return updated
+    })
     setNotice('Transaksi berhasil dihapus.')
+    setRemoteReportPage(1)
     reloadAfterMutation()
   }
 
@@ -560,7 +605,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
       <header className="desktop-header">
         <div className="header-inner">
           <button className="brand" onClick={() => navigate("Dashboard")}>
-            <span className="brand-mark">S</span>
+            <img className="brand-mark" src="/logo.png" alt="" />
             <strong>Lapak Hj TIK MT</strong>
           </button>
           <nav aria-label="Navigasi utama">
@@ -610,7 +655,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 aria-expanded={showProfileMenu}
                 onClick={() => setShowProfileMenu((current) => !current)}
               >
-                S
+                <img src="/logo.png" alt="" />
               </button>
               {showProfileMenu && (
                 <div className="profile-dropdown" role="menu">
@@ -700,12 +745,12 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                   />
                 </div>
               </article>
-              <article className="metric featured">
+              <article className="metric income-metric">
                 <span>Total pemasukan</span>
                 <strong>{compactRupiah(commissionTotal)}</strong>
                 <div className="progress-meta">
-                  <small>{rangeStart}</small>
-                  <small>{rangeEnd}</small>
+                    <small>{displayDate(rangeStart)}</small>
+                    <small>{displayDate(rangeEnd)}</small>
                 </div>
                 <div className="progress">
                   <i style={{ width: `${commissionTotal ? "100%" : "0%"}` }} />
@@ -820,22 +865,14 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 </div>
                 <div className="chart">
                   <div className="chart-labels">
-                    <span>4 jt</span>
-                    <span>3 jt</span>
-                    <span>2 jt</span>
-                    <span>1 jt</span>
-                    <span>0</span>
+                     {[chartData.max, chartData.max * 0.75, chartData.max * 0.5, chartData.max * 0.25, 0].map((tick) => <span key={tick}>{compactRupiah(tick)}</span>)}
                   </div>
                   <div
                     className="bars"
                     role="img"
                     aria-label="Grafik arus keuangan berdasarkan rentang yang dipilih"
                   >
-                    {buildChartBuckets(
-                      filteredTransactions,
-                      rangeStart,
-                      rangeEnd,
-                    ).map((bucket) => (
+                    {chartData.values.map((bucket) => (
                       <div className="bar-group" key={bucket.label}>
                         <div
                           className="bar commission-bar"
@@ -868,11 +905,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {buildChartBuckets(
-                      filteredTransactions,
-                      rangeStart,
-                      rangeEnd,
-                    ).map((bucket) => (
+                    {chartData.values.map((bucket) => (
                       <tr key={`data-${bucket.label}`}>
                         <td>{bucket.label}</td>
                         <td>{rupiah(bucket.commission)}</td>
@@ -989,6 +1022,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 years={reportYears}
                 onYearChange={setReportYear}
                 rows={remoteYearlyRows ?? yearlyRows}
+                loading={remoteYearlyLoading}
                 commission={(remoteYearlyRows ?? yearlyRows).reduce(
                   (total, row) => total + row.commission,
                   0,
@@ -1048,7 +1082,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
       </nav>
 
       {showModal && (
-        <div className="modal-backdrop" onClick={() => setShowModal(false)}>
+        <div className="modal-backdrop" onClick={closeTransactionModal}>
           <div className="sr-only" aria-live="polite">
             Form pencatatan transaksi terbuka
           </div>
@@ -1063,7 +1097,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
             <button
               type="button"
               className="close"
-              onClick={() => setShowModal(false)}
+              onClick={closeTransactionModal}
               aria-label="Tutup"
             >
               <X size={22} />
@@ -1250,9 +1284,9 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 {formError}
               </p>
             )}
-            <button className="primary save-button" type="submit">
-              Simpan {batchEntries.length}{" "}
-              {formType === "Komisi" ? "pemasukan" : "pengeluaran"}
+             <button className="primary save-button" type="submit" disabled={savingTransaction}>
+               {savingTransaction ? "Menyimpan..." : `Simpan ${batchEntries.length} `}
+               {formType === "Komisi" ? "pemasukan" : "pengeluaran"}
             </button>
           </form>
         </div>
@@ -1310,38 +1344,34 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
   }
 
   const exportDaily = async (format: ExportFormat, date: string, items: Transaction[]) => {
-    if (format === 'pdf') {
-      await exportStatementPdf(`Laporan harian`, `laporan-harian-${date}`, items.map((item) => ({
-        date,
-        type: item.type === 'Komisi' ? 'Pemasukan' : 'Pengeluaran',
-        time: item.time,
-        name: item.name,
-        category: item.category,
-        note: item.note,
-        amount: item.amount,
-      })))
-      return
-    }
-    await exportReport(format, `Laporan harian ${displayDate(date)}`, `laporan-harian-${date}`, reportRows(items))
+    const rows = items.map((item) => ({
+      date,
+      type: item.type === 'Komisi' ? 'Pemasukan' as const : 'Pengeluaran' as const,
+      time: item.time,
+      name: item.name,
+      category: item.category,
+      note: item.note,
+      amount: item.amount,
+    }))
+    if (format === 'pdf') await exportStatementPdf('Laporan harian', `laporan-harian-${date}`, rows)
+    else await exportStatementExcel('Laporan harian', `laporan-harian-${date}`, rows)
   }
 
   const exportMonthly = async (format: ExportFormat) => {
     const items = transactions.filter((item) => item.date.startsWith(exportMonth))
     const [year, month] = exportMonth.split('-')
     const title = `Laporan ${MONTHS[Number(month) - 1]} ${year}`
-    if (format === 'pdf') {
-      await exportMonthlyPdf(title, `laporan-bulanan-${exportMonth}`, items.map((item) => ({
-        date: displayDate(item.date),
-        type: item.type === 'Komisi' ? 'Pemasukan' : 'Pengeluaran',
-        time: item.time,
-        name: item.name,
-        category: item.category,
-        note: item.note,
-        amount: item.amount,
-      })))
-      return
-    }
-    await exportReport(format, title, `laporan-bulanan-${exportMonth}`, reportRows(items))
+    const rows = items.map((item) => ({
+      date: item.date,
+      type: item.type === 'Komisi' ? 'Pemasukan' as const : 'Pengeluaran' as const,
+      time: item.time,
+      name: item.name,
+      category: item.category,
+      note: item.note,
+      amount: item.amount,
+    }))
+    if (format === 'pdf') await exportMonthlyPdf(title, `laporan-bulanan-${exportMonth}`, rows)
+    else await exportMonthlyExcel(title, `laporan-bulanan-${exportMonth}`, rows)
   }
 
   return <section className="daily-reports">
@@ -1386,15 +1416,15 @@ function ExpenseNameModal({ items, value, editingId, onNameChange, onEdit, onDel
   return <div className="modal-backdrop" onClick={onClose}><form className="modal category-modal" role="dialog" aria-modal="true" aria-labelledby="expense-name-modal-title" onClick={(event) => event.stopPropagation()} onSubmit={onSave}><button type="button" className="close" onClick={onClose} aria-label="Tutup"><X size={22} /></button><h2 id="expense-name-modal-title">Kelola nama pengeluaran</h2><p>Buat daftar nama yang akan muncul pada form pengeluaran.</p><div className="category-form"><label>{editingId ? 'Ubah nama pengeluaran' : 'Nama pengeluaran baru'}<input value={value} onChange={(event) => onNameChange(event.target.value)} placeholder="Contoh: Perawatan mesin" required /></label><button className="primary" type="submit">{editingId ? 'Simpan' : 'Tambah'}</button></div><div className="category-list">{items.map((item) => <div className="category-row" key={item.id}><strong>{item.name}</strong><span><button type="button" onClick={() => onEdit(item)} aria-label={`Edit nama pengeluaran ${item.name}`}><PencilSimple size={16} /></button><button type="button" onClick={() => onDelete(item)} aria-label={`Hapus nama pengeluaran ${item.name}`}><Trash size={16} /></button></span></div>)}</div></form></div>
 }
 
-function AnnualReport({ year, years, onYearChange, rows, commission, expense }: { year: string; years: string[]; onYearChange: (year: string) => void; rows: { month: string; commission: number; expense: number; net: number }[]; commission: number; expense: number }) {
+function AnnualReport({ year, years, onYearChange, rows, commission, expense, loading }: { year: string; years: string[]; onYearChange: (year: string) => void; rows: { month: string; commission: number; expense: number; net: number }[]; commission: number; expense: number; loading: boolean }) {
   const exportAnnual = async (format: ExportFormat) => {
     await exportReport(format, `Laporan tahunan ${year}`, `laporan-tahunan-${year}`, rows.map((row) => ({ Bulan: row.month, Pemasukan: row.commission, Pengeluaran: row.expense, 'Laba Bersih': row.net })))
   }
 
- return <section className="annual-report"><div className="annual-heading"><div><h2>Ringkasan {year}</h2><p>Rekap keuangan dari Januari sampai Desember.</p></div><div className="annual-actions"><label>Tahun<select value={year} onChange={(event) => onYearChange(event.target.value)}>{years.map((option) => <option key={option}>{option}</option>)}</select></label><ExportButtons onExport={exportAnnual} /></div></div><div className="annual-summary"><div><span>Total pemasukan</span><strong className="annual-income-amount">{rupiah(commission)}</strong></div><div><span>Total pengeluaran</span><strong className="annual-expense-amount">{rupiah(expense)}</strong></div><div className="annual-net"><span>Laba tahunan</span><strong>{rupiah(commission - expense)}</strong></div></div><div className="table-wrap annual-table"><table><caption className="sr-only">Ringkasan keuangan per bulan untuk tahun {year}</caption><thead><tr><th scope="col">Bulan</th><th scope="col">Pemasukan</th><th scope="col">Pengeluaran</th><th scope="col">Laba bersih</th></tr></thead><tbody>{rows.map((row) => <tr key={row.month}><td data-label="Bulan"><strong>{row.month}</strong></td><td data-label="Pemasukan" className="annual-income-amount">{rupiah(row.commission)}</td><td data-label="Pengeluaran" className="annual-expense-amount">{rupiah(row.expense)}</td><td data-label="Laba bersih" className="table-amount">{rupiah(row.net)}</td></tr>)}</tbody></table></div></section>
+  return <section className="annual-report"><div className="annual-heading"><div><h2>Ringkasan {year}</h2><p>Rekap keuangan dari Januari sampai Desember.</p></div><div className="annual-actions"><label>Tahun<select value={year} onChange={(event) => onYearChange(event.target.value)}>{years.map((option) => <option key={option}>{option}</option>)}</select></label><ExportButtons disabled={loading} onExport={exportAnnual} /></div></div>{loading ? <div className="loading-report" role="status">Memuat ringkasan tahunan...</div> : <><div className="annual-summary"><div><span>Total pemasukan</span><strong className="annual-income-amount">{rupiah(commission)}</strong></div><div><span>Total pengeluaran</span><strong className="annual-expense-amount">{rupiah(expense)}</strong></div><div className="annual-net"><span>Laba tahunan</span><strong>{rupiah(commission - expense)}</strong></div></div><div className="table-wrap annual-table"><table><caption className="sr-only">Ringkasan keuangan per bulan untuk tahun {year}</caption><thead><tr><th scope="col">Bulan</th><th scope="col">Pemasukan</th><th scope="col">Pengeluaran</th><th scope="col">Laba bersih</th></tr></thead><tbody>{rows.map((row) => <tr key={row.month}><td data-label="Bulan"><strong>{row.month}</strong></td><td data-label="Pemasukan" className="annual-income-amount">{rupiah(row.commission)}</td><td data-label="Pengeluaran" className="annual-expense-amount">{rupiah(row.expense)}</td><td data-label="Laba bersih" className="table-amount">{rupiah(row.net)}</td></tr>)}</tbody></table></div></>}</section>
 }
 
-function ExportButtons({ onExport, compact = false }: { onExport: (format: ExportFormat) => Promise<void> | void; compact?: boolean }) {
+function ExportButtons({ onExport, compact = false, disabled = false }: { onExport: (format: ExportFormat) => Promise<void> | void; compact?: boolean; disabled?: boolean }) {
   const [busy, setBusy] = useState<ExportFormat | null>(null)
   const [error, setError] = useState('')
 
@@ -1410,7 +1440,7 @@ function ExportButtons({ onExport, compact = false }: { onExport: (format: Expor
     }
   }
 
-  return <div className={compact ? 'export-buttons compact' : 'export-buttons'}><button type="button" disabled={busy !== null} onClick={() => void handleExport('pdf')} title="Export PDF" aria-label="Export PDF">{busy === 'pdf' ? '...' : <><FilePdf size={17} /><span>PDF</span></>}</button><button type="button" disabled={busy !== null} onClick={() => void handleExport('xlsx')} title="Export Excel" aria-label="Export Excel">{busy === 'xlsx' ? '...' : <><FileXls size={17} /><span>Excel</span></>}</button>{error && <span className="export-error" role="alert">{error}</span>}</div>
+  return <div className={compact ? 'export-buttons compact' : 'export-buttons'}><button type="button" disabled={disabled || busy !== null} onClick={() => void handleExport('pdf')} title="Export PDF" aria-label="Export PDF">{busy === 'pdf' ? '...' : <><FilePdf size={17} /><span>PDF</span></>}</button><button type="button" disabled={disabled || busy !== null} onClick={() => void handleExport('xlsx')} title="Export Excel" aria-label="Export Excel">{busy === 'xlsx' ? '...' : <><FileXls size={17} /><span>Excel</span></>}</button>{error && <span className="export-error" role="alert">{error}</span>}</div>
 }
 
 export default App
