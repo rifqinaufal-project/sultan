@@ -15,7 +15,7 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { exportMonthlyExcel, exportMonthlyPdf, exportReport, exportStatementExcel, exportStatementPdf, type ExportFormat } from './lib/exportReport'
-import { createExpenseName, deleteExpenseName, deleteTransaction, isRemoteDataAvailable, loadDailyReports, loadExpenseNames, loadTransactions, loadTransactionsForPeriod, loadTopTrader, loadTraders, loadYearlyReports, saveBatch, updateExpenseName, updateTransaction, type DailyReportRow, type RemoteExpenseName } from './lib/financeRepository'
+import { createExpenseName, deleteExpenseName, deleteTransaction, deleteTransactionsByDate, isRemoteDataAvailable, loadDailyReports, loadExpenseNames, loadTransactions, loadTransactionsForPeriod, loadTopTrader, loadTraders, loadYearlyReports, saveBatch, updateExpenseName, updateTransaction, type DailyReportRow, type RemoteExpenseName } from './lib/financeRepository'
 import './App.css'
 
 type Page = 'Dashboard' | 'Laporan'
@@ -47,7 +47,7 @@ const initialTransactions: Transaction[] = [
 ]
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-const REPORT_DAYS_PER_PAGE = 5
+const REPORT_DAYS_PER_PAGE = 7
 const TOP_TRADER_PREVIEW_COUNT = 5
 const AUTH_STORAGE_KEY = 'sultan-admin-authenticated'
 const LOCAL_TRANSACTIONS_KEY = 'sultan-local-transactions'
@@ -559,6 +559,25 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
     reloadAfterMutation()
   }
 
+  const handleDeleteDay = async (date: string, items: Transaction[]) => {
+    const formattedDate = displayDate(date)
+    if (!window.confirm(`Hapus semua ${items.length} transaksi pada ${formattedDate}? Tindakan ini tidak dapat dibatalkan.`)) return
+    const result = await deleteTransactionsByDate(date)
+    if (result.error) {
+      setNotice(`Semua transaksi pada ${formattedDate} gagal dihapus.`)
+      return
+    }
+    setTransactions((current) => {
+      const updated = current.filter((item) => item.date !== date)
+      if (!isRemoteDataAvailable) window.localStorage.setItem(LOCAL_TRANSACTIONS_KEY, JSON.stringify(updated))
+      return updated
+    })
+    setNotice(`${items.length} transaksi pada ${formattedDate} berhasil dihapus.`)
+    setRemoteReportPage(1)
+    reloadAfterMutation()
+    window.setTimeout(() => setNotice(''), 3000)
+  }
+
   const saveExpenseName = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const name = expenseName.trim()
@@ -1015,6 +1034,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                 remoteLoading={remoteLoading}
                 onEdit={setEditingTransaction}
                 onDelete={handleDeleteTransaction}
+                onDeleteDay={handleDeleteDay}
               />
             ) : (
               <AnnualReport
@@ -1321,8 +1341,9 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRemotePageChange, remoteLoading, onEdit, onDelete }: { transactions: Transaction[]; remoteRows: DailyReportRow[] | null; remoteTotal: number; remotePage: number; onRemotePageChange: (page: number) => void; remoteLoading: boolean; onEdit: (transaction: Transaction) => void; onDelete: (transaction: Transaction) => void }) {
+function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRemotePageChange, remoteLoading, onEdit, onDelete, onDeleteDay }: { transactions: Transaction[]; remoteRows: DailyReportRow[] | null; remoteTotal: number; remotePage: number; onRemotePageChange: (page: number) => void; remoteLoading: boolean; onEdit: (transaction: Transaction) => void; onDelete: (transaction: Transaction) => void; onDeleteDay: (date: string, items: Transaction[]) => Promise<void> }) {
   const [currentPage, setCurrentPage] = useState(1)
+  const [deletingDate, setDeletingDate] = useState<string | null>(null)
   const availableMonths = Array.from(new Set(transactions.map((item) => item.date.slice(0, 7)))).sort().reverse()
   const [exportMonth, setExportMonth] = useState(availableMonths[0] ?? TODAY.slice(0, 7))
   const grouped = remoteRows
@@ -1341,6 +1362,15 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
   const goToPage = (nextPage: number) => {
     if (remoteRows) onRemotePageChange(nextPage)
     else setCurrentPage(nextPage)
+  }
+
+  const deleteDay = async (date: string, items: Transaction[]) => {
+    setDeletingDate(date)
+    try {
+      await onDeleteDay(date, items)
+    } finally {
+      setDeletingDate(null)
+    }
   }
 
   const exportDaily = async (format: ExportFormat, date: string, items: Transaction[]) => {
@@ -1383,7 +1413,7 @@ function DailyReports({ transactions, remoteRows, remoteTotal, remotePage, onRem
       const expenseTotal = expenses.reduce((total, item) => total + item.amount, 0)
 
       return <article className="daily-card" key={date}>
-        <header className="daily-card-header"><div><h2>{displayDate(date)}</h2><p>{items.length} transaksi tercatat</p></div><div className="daily-card-actions"><strong className={`daily-net-header ${commissionTotal - expenseTotal >= 0 ? 'is-profit' : 'is-loss'}`}>{rupiah(commissionTotal - expenseTotal)}</strong><ExportButtons compact onExport={(format) => exportDaily(format, date, items)} /></div></header>
+        <header className="daily-card-header"><div><h2>{displayDate(date)}</h2><p>{items.length} transaksi tercatat</p></div><div className="daily-card-actions"><strong className={`daily-net-header ${commissionTotal - expenseTotal >= 0 ? 'is-profit' : 'is-loss'}`}>{rupiah(commissionTotal - expenseTotal)}</strong><ExportButtons compact onExport={(format) => exportDaily(format, date, items)} /><button className="delete-day-button" type="button" disabled={deletingDate !== null} onClick={() => void deleteDay(date, items)} title={`Hapus seluruh transaksi ${displayDate(date)}`} aria-label={`Hapus seluruh transaksi ${displayDate(date)}`}><Trash size={17} /> <span>{deletingDate === date ? 'Menghapus...' : 'Hapus hari'}</span></button></div></header>
         <div className="daily-columns">
            <section className="daily-column income-column"><div className="daily-column-title"><span className="daily-icon"><ArrowDown size={18} weight="bold" /></span><div><h3>Pemasukan</h3><p>{commissions.length} transaksi</p></div></div><div className="daily-items">{commissions.length ? commissions.map((item) => <DailyItem item={item} sign="+" onEdit={onEdit} onDelete={onDelete} key={item.id} />) : <p className="daily-empty">Tidak ada pemasukan.</p>}</div></section>
           <section className="daily-column expense-column"><div className="daily-column-title"><span className="daily-icon"><ArrowUp size={18} weight="bold" /></span><div><h3>Pengeluaran</h3><p>{expenses.length} transaksi</p></div></div><div className="daily-items">{expenses.length ? expenses.map((item) => <DailyItem item={item} sign="-" onEdit={onEdit} onDelete={onDelete} key={item.id} />) : <p className="daily-empty">Tidak ada pengeluaran.</p>}</div></section>

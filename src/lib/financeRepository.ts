@@ -125,6 +125,15 @@ export async function deleteTransaction(transaction: RemoteTransaction) {
   return { error: result.error }
 }
 
+export async function deleteTransactionsByDate(date: string) {
+  if (!supabase) return { error: null }
+  const [commissionResult, expenseResult] = await Promise.all([
+    supabase.from('commissions').delete().eq('transaction_date', date),
+    supabase.from('expenses').delete().eq('transaction_date', date),
+  ])
+  return { error: commissionResult.error ?? expenseResult.error }
+}
+
 export async function loadTransactions(limit?: number) {
   if (!supabase) return { data: null, error: null }
   const commissionQuery = supabase.from('commissions').select('id, transaction_date, amount, notes, created_at, traders(name)').order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
