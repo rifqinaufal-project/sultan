@@ -66,3 +66,34 @@
 .reports .report-tabs,.reports .monthly-export,.reports .daily-card,.reports .annual-report{background:#fff}
 
 @media(max-width:640px){.metrics{gap:12px 8px}.metric{background:#fff}.net-metric{background:#090909}}
+
+/* Dashboard panel surfaces */
+.metric:not(.net-metric){background:#fff!important}
+.chart-section,.transaction-section{background:#fff;border-radius:12px}
+.chart-section{padding:25px}
+.transaction-section{padding:25px}
+.metric.featured>span{color:#090909}
+.metric.featured>strong{color:#090909!important}
+.metric.featured .progress-meta small{color:#090909}
+
+/* Annual report spacing */
+.annual-report{margin-top:0;padding:30px}
+.annual-heading{align-items:flex-start;margin-bottom:26px}
+.annual-heading p{margin-top:7px}
+.annual-actions{gap:12px}
+.annual-summary{margin:0 0 32px;border-radius:10px;overflow:hidden;background:#fff}
+.annual-summary>div{padding:24px}
+.annual-summary .annual-income-amount{color:#090909!important}
+.annual-table{margin-top:0;padding-top:2px}
+
+@media(max-width:640px){
+  .annual-report{padding:24px 18px}
+  .annual-heading{align-items:stretch;flex-direction:column;gap:18px;margin-bottom:22px}
+  .annual-actions{align-items:stretch;flex-direction:row;gap:10px}
+  .annual-actions label{flex:1}
+  .annual-heading select{width:100%}
+  .annual-actions .export-buttons{flex:1}
+  .annual-actions .export-buttons button{flex:1;justify-content:center}
+  .annual-summary{margin-bottom:24px}
+  .annual-summary>div{padding:18px}
+}
