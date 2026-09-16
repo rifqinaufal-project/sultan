@@ -842,18 +842,30 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                   )}
                 </>
               ) : (
-                <p className="top-trader-empty">
-                  Catat pemasukan untuk melihat peringkat Supplier.
-                </p>
+                <div className="ranking-empty">
+                  <span className="ranking-empty-icon" aria-hidden="true">
+                    <ArrowDown size={21} weight="bold" />
+                  </span>
+                  <div className="ranking-empty-copy">
+                    <strong>Belum ada data komisi</strong>
+                    <span>
+                      Tambahkan pemasukan pada periode ini untuk melihat supplier teratas.
+                    </span>
+                  </div>
+                  <button type="button" onClick={() => openModal('Komisi')}>
+                    <Plus size={15} weight="bold" />
+                    Catat pemasukan
+                  </button>
+                </div>
               )}
             </section>
             <section
               className="top-trader-card expense-ranking-card"
-              aria-label="Semua kategory pengeluaran berdasarkan total pengeluaran"
+              aria-label="Semua kategori pengeluaran berdasarkan total pengeluaran"
             >
               <div className="top-trader-heading">
-                <span>Pengeluaran terbesar berdasarkan ketegory</span>
-                <small>Semua kategory pengeluaran · periode yang dipilih</small>
+                <span>Pengeluaran terbesar berdasarkan kategori</span>
+                <small>Semua kategori pengeluaran · periode yang dipilih</small>
               </div>
               {topExpenses.length ? (
                 <div className="top-trader-list">
@@ -866,9 +878,21 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
                   ))}
                 </div>
               ) : (
-                <p className="top-trader-empty">
-                  Catat pengeluaran untuk melihat peringkat nama pengeluaran.
-                </p>
+                <div className="ranking-empty">
+                  <span className="ranking-empty-icon" aria-hidden="true">
+                    <ArrowUp size={21} weight="bold" />
+                  </span>
+                  <div className="ranking-empty-copy">
+                    <strong>Belum ada data pengeluaran</strong>
+                    <span>
+                      Tambahkan pengeluaran pada periode ini untuk melihat kategori terbesar.
+                    </span>
+                  </div>
+                  <button type="button" onClick={() => openModal('Pengeluaran')}>
+                    <Plus size={15} weight="bold" />
+                    Catat pengeluaran
+                  </button>
+                </div>
               )}
             </section>
 
