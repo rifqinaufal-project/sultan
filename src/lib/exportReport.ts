@@ -239,17 +239,17 @@ const drawSummary = (pdfDocument: InstanceType<typeof import('jspdf').jsPDF>, ro
   cards.forEach(([label, value, background, color], index) => {
     const x = 14 + index * (cardWidth + 2)
     pdfDocument.setFillColor(...background)
-    pdfDocument.roundedRect(x, startY + 9, cardWidth, 15, 1.5, 1.5, 'F')
+    pdfDocument.roundedRect(x, startY + 8, cardWidth, 12, 1.2, 1.2, 'F')
     pdfDocument.setFont('helvetica', 'normal')
-    pdfDocument.setFontSize(7)
+    pdfDocument.setFontSize(6.5)
     pdfDocument.setTextColor(95, 95, 95)
-    pdfDocument.text(label, x + 4, startY + 14)
+    pdfDocument.text(label, x + 3, startY + 12)
     pdfDocument.setFont('helvetica', 'bold')
-    pdfDocument.setFontSize(9)
+    pdfDocument.setFontSize(8)
     pdfDocument.setTextColor(...color)
-    pdfDocument.text(value, x + 4, startY + 21)
+    pdfDocument.text(value, x + 3, startY + 17.5)
   })
-  return startY + 27
+  return startY + 22
 }
 
 const aggregateRows = (rows: StatementRow[]) => Object.values(rows.reduce<Record<string, { name: string; income: number; expense: number }>>((summary, row) => {
