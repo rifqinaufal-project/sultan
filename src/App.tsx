@@ -126,6 +126,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const [remoteYearlyLoading, setRemoteYearlyLoading] = useState(false)
   const [remoteTopTraders, setRemoteTopTraders] = useState<{ name: string; amount: number }[]>([])
   const [expandedTopTraderRange, setExpandedTopTraderRange] = useState<string | null>(null)
+  const [expandedTopExpenseRange, setExpandedTopExpenseRange] = useState<string | null>(null)
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [showExpenseNameModal, setShowExpenseNameModal] = useState(false)
@@ -160,6 +161,9 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const showAllTopTraders = expandedTopTraderRange === topTraderRangeKey
   const visibleTopTraders = showAllTopTraders ? topTraders : topTraders.slice(0, TOP_TRADER_PREVIEW_COUNT)
   const topExpenses = Array.from(new Set(expenses.map((item) => item.name))).map((name) => ({ name, amount: expenses.filter((item) => item.name === name).reduce((total, item) => total + item.amount, 0) })).sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name))
+  const hasMoreTopExpenses = topExpenses.length > TOP_TRADER_PREVIEW_COUNT
+  const showAllTopExpenses = expandedTopExpenseRange === topTraderRangeKey
+  const visibleTopExpenses = showAllTopExpenses ? topExpenses : topExpenses.slice(0, TOP_TRADER_PREVIEW_COUNT)
   const yearlyTransactions = transactions.filter((item) => item.date.startsWith(reportYear))
   const yearlyRows = MONTHS.map((month, index) => {
     const monthKey = `${reportYear}-${String(index + 1).padStart(2, '0')}`
@@ -551,11 +555,15 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
             visibleTopTraders={visibleTopTraders}
             hasMoreTopTraders={hasMoreTopTraders}
             showAllTopTraders={showAllTopTraders}
+            visibleTopExpenses={visibleTopExpenses}
+            hasMoreTopExpenses={hasMoreTopExpenses}
+            showAllTopExpenses={showAllTopExpenses}
             chart={chartData}
             onRangeChange={setRange}
             onCustomStartChange={setCustomStart}
             onCustomEndChange={setCustomEnd}
             onToggleTopTraders={() => setExpandedTopTraderRange((current) => current === topTraderRangeKey ? null : topTraderRangeKey)}
+            onToggleTopExpenses={() => setExpandedTopExpenseRange((current) => current === topTraderRangeKey ? null : topTraderRangeKey)}
             onAddTransaction={openModal}
             onViewReports={() => navigate('Laporan')}
           />

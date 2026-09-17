@@ -32,11 +32,15 @@ type DashboardOverviewProps = {
   visibleTopTraders: RankedItem[]
   hasMoreTopTraders: boolean
   showAllTopTraders: boolean
+  visibleTopExpenses: RankedItem[]
+  hasMoreTopExpenses: boolean
+  showAllTopExpenses: boolean
   chart: { max: number; values: ChartBucket[] }
   onRangeChange: (range: DashboardRange) => void
   onCustomStartChange: (date: string) => void
   onCustomEndChange: (date: string) => void
   onToggleTopTraders: () => void
+  onToggleTopExpenses: () => void
   onAddTransaction: (type: TransactionType) => void
   onViewReports: () => void
 }
@@ -67,7 +71,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <RankingCard title="Supplier dengan komisi terbanyak" description="Semua supplier pada periode yang dipilih" items={props.visibleTopTraders} totalItems={props.topTraders.length} emptyTitle="Belum ada data komisi" emptyDescription="Catat pemasukan untuk melihat supplier teratas." emptyIcon={<ArrowDown size={20} weight="bold" />} onAdd={() => props.onAddTransaction('Komisi')} addLabel="Catat pemasukan" canToggle={props.hasMoreTopTraders} expanded={props.showAllTopTraders} onToggle={props.onToggleTopTraders} />
-        <RankingCard title="Pengeluaran terbesar" description="Berdasarkan kategori pada periode ini" items={props.topExpenses} emptyTitle="Belum ada data pengeluaran" emptyDescription="Catat pengeluaran untuk melihat kategori terbesar." emptyIcon={<ArrowUp size={20} weight="bold" />} onAdd={() => props.onAddTransaction('Pengeluaran')} addLabel="Catat pengeluaran" tone="negative" />
+        <RankingCard title="Pengeluaran terbesar" description="Berdasarkan kategori pada periode ini" items={props.visibleTopExpenses} totalItems={props.topExpenses.length} emptyTitle="Belum ada data pengeluaran" emptyDescription="Catat pengeluaran untuk melihat kategori terbesar." emptyIcon={<ArrowUp size={20} weight="bold" />} onAdd={() => props.onAddTransaction('Pengeluaran')} addLabel="Catat pengeluaran" canToggle={props.hasMoreTopExpenses} expanded={props.showAllTopExpenses} onToggle={props.onToggleTopExpenses} tone="negative" />
       </div>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
