@@ -69,14 +69,19 @@ export async function saveBatch(input: {
   if (!supabase) return { error: null }
 
   if (input.commissions.length) {
+    // A batch can contain multiple commission rows for the same trader. The
+    // commission rows must all be kept, but the trader upsert payload must
+    // contain each unique conflict key only once. PostgreSQL rejects an
+    // upsert when two input rows would update the same existing row.
+    const uniqueTraderNames = Array.from(new Set(input.commissions.map((item) => item.name)))
     const traderResult = await supabase.from('traders').upsert(
-      input.commissions.map((item) => ({ name: item.name })),
+      uniqueTraderNames.map((name) => ({ name })),
       { onConflict: 'name', ignoreDuplicates: false },
     ).select('id, name')
     if (traderResult.error) return { error: traderResult.error }
-    const traderIds = new Map((traderResult.data ?? []).map((trader) => [trader.name.toLocaleLowerCase('id-ID'), trader.id]))
+    const traderIds = new Map((traderResult.data ?? []).map((trader) => [trader.name, trader.id]))
     const commissionResult = await supabase.from('commissions').insert(input.commissions.map((item) => ({
-      trader_id: traderIds.get(item.name.toLocaleLowerCase('id-ID')),
+      trader_id: traderIds.get(item.name),
       transaction_date: input.date,
       amount: item.amount,
       notes: input.note || null,
