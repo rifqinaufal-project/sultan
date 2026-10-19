@@ -69,7 +69,6 @@ export function DailyReports({ transactions, remoteRows, remoteTotal, remotePage
   const [currentPage, setCurrentPage] = useState(1)
   const [deletingDate, setDeletingDate] = useState<string | null>(null)
   const [editingDate, setEditingDate] = useState<{ date: string; items: Transaction[] } | null>(null)
-  const [newDateInput, setNewDateInput] = useState('')
   const availableMonths = Array.from(new Set(transactions.map((item) => item.date.slice(0, 7)))).sort().reverse()
   const [exportMonth, setExportMonth] = useState(availableMonths[0] ?? TODAY.slice(0, 7))
   const grouped = remoteRows !== null
@@ -92,9 +91,8 @@ export function DailyReports({ transactions, remoteRows, remoteTotal, remotePage
   }
   const editDay = (date: string, items: Transaction[]) => {
     setEditingDate({ date, items })
-    setNewDateInput(date)
   }
-  const updateDailyDate = async (items: Transaction[], newDate: string) => {
+  const updateDailyDate = async (newDate: string) => {
     if (!newDate || !editingDate) return
     // Check if new date is valid
     const now = new Date()
@@ -107,7 +105,7 @@ export function DailyReports({ transactions, remoteRows, remoteTotal, remotePage
     
     try {
       // Update each transaction individually
-      for (const item of items) {
+      for (const item of editingDate.items) {
         await onEdit({ ...item, date: newDate })
       }
     } catch (error) {
@@ -120,7 +118,6 @@ export function DailyReports({ transactions, remoteRows, remoteTotal, remotePage
   }
   const closeEditModal = () => {
     setEditingDate(null)
-    setNewDateInput('')
   }
   const exportDaily = async (format: ExportFormat, date: string, items: Transaction[]) => {
     const rows = items.map((item) => ({ date, type: item.type === 'Komisi' ? 'Pemasukan' as const : 'Pengeluaran' as const, time: item.time, name: item.name, category: item.category, note: item.note, amount: item.amount }))
@@ -169,13 +166,13 @@ export function DailyReports({ transactions, remoteRows, remoteTotal, remotePage
       }) : <ReportState><strong>Belum ada laporan harian</strong><span className="mt-1 block">Transaksi yang dicatat akan dikelompokkan berdasarkan tanggal.</span></ReportState>}
       <footer className="flex flex-col justify-between gap-3 text-xs text-zinc-500 sm:flex-row sm:items-center"><p>Maksimal {REPORT_DAYS_PER_PAGE} hari per halaman</p><div className="flex items-center gap-3"><Button variant="icon" size="sm" className="size-10 px-0" onClick={() => goToPage(Math.max(1, page - 1))} disabled={page === 1 || remoteLoading} aria-label="Halaman sebelumnya"><CaretLeft size={18} /></Button><span>Halaman <strong className="text-zinc-950">{page}</strong> dari {totalPages}</span><Button variant="icon" size="sm" className="size-10 px-0" onClick={() => goToPage(Math.min(totalPages, page + 1))} disabled={page === totalPages || remoteLoading} aria-label="Halaman berikutnya"><CaretRight size={18} /></Button></div></footer>
     </section>
-    <EditDateModal 
+    {editingDate && <EditDateModal
       isOpen={editingDate !== null}
       onClose={closeEditModal}
       date={editingDate?.date ?? ''}
       items={editingDate?.items ?? []}
       onSave={updateDailyDate}
-    />
+    />}
     </>
   )
 }

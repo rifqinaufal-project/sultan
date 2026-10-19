@@ -5,7 +5,7 @@ import { FormField, inputClassName } from '../ui/FormField'
 const ADMIN_USERNAME = 'admin'
 const ADMIN_PASSWORD = 'admin'
 
-export function AdminLogin({ onLogin }: { onLogin: () => void }) {
+export function AdminLogin({ onLogin, sessionMessage }: { onLogin: () => void; sessionMessage?: string }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -30,6 +30,7 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
         <h1 id="login-title" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-zinc-950">Masuk ke dashboard</h1>
         <p className="mt-2 max-w-sm text-sm leading-relaxed text-zinc-600">Gunakan akun admin untuk mengelola catatan keuangan.</p>
         <form className="mt-7 grid gap-4" onSubmit={submit}>
+          {sessionMessage && <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900" role="status">{sessionMessage}</p>}
           <FormField label="Username">
             <input id="admin-username" className={inputClassName} type="text" value={username} onChange={(event) => { setUsername(event.target.value); setError('') }} autoComplete="username" autoFocus required />
           </FormField>

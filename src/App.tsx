@@ -9,6 +9,7 @@ import { NEW_EXPENSE, TransactionModal } from './components/transactions/Transac
 import { Button } from './components/ui/Button'
 import { SegmentedControl } from './components/ui/SegmentedControl'
 import { cn } from './lib/cn'
+import { AUTH_STORAGE_KEY, clearAdminSession, readAdminSession, SESSION_EXPIRED_EVENT, startAdminSession } from './lib/adminSession'
 import { displayDate, getDateDaysBefore, localToday, MONTHS, TODAY } from './lib/formatters'
 import type { BatchEntry, DashboardRange, Page, ReportView, Transaction, TransactionType } from './types/finance'
 
@@ -21,7 +22,6 @@ const initialTransactions: Transaction[] = [
 
 const REPORT_DAYS_PER_PAGE = 7
 const TOP_TRADER_PREVIEW_COUNT = 5
-const AUTH_STORAGE_KEY = 'sultan-admin-authenticated'
 const LOCAL_TRANSACTIONS_KEY = 'sultan-local-transactions'
 const initialExpenseNames = ['Solar kapal', 'Transportasi', 'Makanan kru', 'Gaji karyawan']
 const initialTraderNames = ['Budi Santoso', 'Siti Rahma']
@@ -67,14 +67,6 @@ const buildChartBuckets = (items: Transaction[], start: string, end: string) => 
   return { max, values: values.map((bucket) => ({ ...bucket, commissionPercent: bucket.commission / max * 100, expensePercent: bucket.expense / max * 100 })) }
 }
 
-const readAdminSession = () => {
-  try {
-    return window.localStorage.getItem(AUTH_STORAGE_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
 const loadLocalTransactions = () => {
   try {
     const saved = window.localStorage.getItem(LOCAL_TRANSACTIONS_KEY)
@@ -86,18 +78,48 @@ const loadLocalTransactions = () => {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(readAdminSession)
+  const [sessionMessage, setSessionMessage] = useState('')
+
+  useEffect(() => {
+    const expire = () => {
+      clearAdminSession()
+      setSessionMessage('Sesi berakhir, silakan masuk kembali. Jika tetap gagal setelah login, hubungi administrator untuk memeriksa konfigurasi Supabase.')
+      setIsAuthenticated(false)
+    }
+    const check = () => {
+      if (isAuthenticated && !readAdminSession()) expire()
+    }
+    const storage = (event: StorageEvent) => {
+      if (event.key === AUTH_STORAGE_KEY || event.key === null) check()
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, expire)
+    window.addEventListener('storage', storage)
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    const interval = window.setInterval(check, 1000)
+    check()
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, expire)
+      window.removeEventListener('storage', storage)
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+      window.clearInterval(interval)
+    }
+  }, [isAuthenticated])
 
   const handleLogin = () => {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, 'true')
+    startAdminSession()
+    setSessionMessage('')
     setIsAuthenticated(true)
   }
 
   const handleLogout = () => {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
+    clearAdminSession()
+    setSessionMessage('')
     setIsAuthenticated(false)
   }
 
-  return isAuthenticated ? <DashboardApp onLogout={handleLogout} /> : <AdminLogin onLogin={handleLogin} />
+  return isAuthenticated ? <DashboardApp onLogout={handleLogout} /> : <AdminLogin onLogin={handleLogin} sessionMessage={sessionMessage} />
 }
 
 function DashboardApp({ onLogout }: { onLogout: () => void }) {
